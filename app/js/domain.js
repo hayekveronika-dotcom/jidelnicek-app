@@ -32,6 +32,7 @@ export function emptyState() {
     frozen: [],
     plans: [],
     lists: [],
+    proposals: [], // návrhy od Clauda (proposals.js)
     meta: { createdAt: new Date().toISOString() },
   };
 }
@@ -309,6 +310,7 @@ export function migrateState(state) {
       if (!p.slots[k].length) delete p.slots[k];
     }
   }
+  state.proposals = state.proposals || [];
   state.schema = 2;
   return state;
 }

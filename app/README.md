@@ -64,6 +64,24 @@ SELECT rev, updated_at, updated_by FROM app_state_history ORDER BY rev DESC LIMI
 UPDATE app_state SET data = (SELECT data FROM app_state_history WHERE rev = 123), rev = rev + 1 WHERE id = 'main';
 ```
 
+## Propojení s Claudem (konektor MCP)
+
+Claude v claude.ai čte knihovnu, zásoby a jídelníčky a posílá **návrhy** (nový pokrm, surovina, obsazení dnů). Návrhy se objeví na obrazovce Jídelníček jako „Návrhy od Clauda“. Po *Přijmout* se provedou stejně, jako kdyby se zadaly ručně (kontrola duplicit, mražené zásoby, jídla podle dne). *Zamítnout* je zahodí.
+
+Přístup chrání tajná část adresy `https://jidelnicek-app.pages.dev/mcp/<MCP_SECRET>`. Kdo ji zná, dostane se k datům, proto ji nikam nesdílejte. Když unikne, změňte `MCP_SECRET` a konektor v claude.ai přidejte znovu.
+
+Nastavení (jednorázově):
+
+1. Pages projekt → *Settings* → *Variables and Secrets* → *Add* → *Type* **Secret**, název `MCP_SECRET`, hodnota = náhodný řetězec (aspoň 32 znaků). Pak *Deployments* → *Retry deployment*.
+2. Zero Trust → *Access* → *Applications* → *Add an application* → *Self-hosted*:
+   - *Public hostname*: subdoména prázdná, doména `jidelnicek-app.pages.dev`, *Path* `mcp`;
+   - *Policy*: *Action* **Bypass**, *Include* **Everyone**.
+   (claude.ai se přes Access přihlásit neumí. Ochranu tu zajišťuje tajná adresa.)
+3. claude.ai → *Settings* → *Connectors* → *Add custom connector* → název „Jídelníček“, URL `https://jidelnicek-app.pages.dev/mcp/<MCP_SECRET>`, *Advanced settings* nevyplňovat.
+4. V chatu nebo projektu zapněte konektor (ikona nástrojů) a zkuste např. „Co mám v knihovně za snídaně?“.
+
+Nástroje: `get_library`, `get_plans`, `list_proposals`, `propose_plan`, `propose_dish`, `propose_ingredient`, `withdraw_proposal`.
+
 ## Struktura
 
 | Soubor | Obsah |
@@ -73,6 +91,9 @@ UPDATE app_state SET data = (SELECT data FROM app_state_history WHERE rev = 123)
 | `js/db.js` | ukládání v zařízení (IndexedDB, záložně localStorage) |
 | `js/sync.js` | synchronizace se serverem (`/api/state`), stav v menu |
 | `js/merge.js` | slučování změn ze dvou zařízení (čisté funkce) |
+| `js/proposals.js` | návrhy od Clauda: kontrola (sdílí aplikace i server), přijetí/zamítnutí |
+| `../functions/mcp/[secret].js` | MCP server pro Clauda (tajná adresa, jen návrhy) |
+| `../server/store.js` | čtení/zápis stavu v D1 (sdílí API i MCP) |
 | `../functions/api/` | server: ověření přihlášení (`_middleware.js`), čtení/zápis stavu v D1 (`state.js`) |
 | `js/app.js` | obrazovky a ovládání |
 | `css/app.css` | vzhled podle návrhů |

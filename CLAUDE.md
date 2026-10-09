@@ -17,6 +17,8 @@ Zadání: `docs/zadani.md`, návrhy obrazovek: `docs/screens/` (10 obrazovek, mo
 - `app/js/sync.js` – synchronizace: `GET/PUT /api/state` s číslem verze (`rev`); při 409 tříbodové sloučení (`base` = poslední stav ze serveru) a nový pokus. `markDirty()` volá `persist()`, `markReplace()` import/smazání (přepíše server). Stav sync se ukládá v IndexedDB pod klíčem `sync`. Při 404 (lokální server) režim `local`.
 - `app/js/merge.js` – `mergeStates(base, local, remote)`: po entitách (`id`) a polích, při kolizi vyhrává local, smazání vs. úprava → úprava, `frozen[].qty` jako rozdíly; `normalizeMerged()` spojí zdvojené týdny / aktuální seznamy / položky seznamu. Čisté funkce, použitelné i na serveru (MCP).
 - `functions/api/_middleware.js` – ověření JWT Cloudflare Access (env `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`), `context.data.user` = e-mail nebo `common_name` servisního tokenu. `functions/api/state.js` – stav v D1 (binding `DB`): tabulka `app_state` (1 řádek `main`, compare-and-swap přes `rev`), `app_state_history` (posledních 200 verzí). Tabulky se zakládají samy.
+- `app/js/proposals.js` – návrhy od Clauda v `state.proposals[]` {id, kind ingredient|dish|plan, data, note, status pending|accepted|rejected, result}. `prepare*()` validuje podle pravidel aplikace (duplicity surovin/pokrmů, jídla podle dne, zásoby mražených), `acceptProposal()` provede přes `domain.js` (názvy se dohledají až při přijetí, takže plan může odkazovat na čekající pokrm). Sdílí aplikace (banner + sheet na Jídelníčku) i server.
+- `functions/mcp/[secret].js` – MCP server (Streamable HTTP, bezstavový JSON-RPC, bez SDK). Přístup = `env.MCP_SECRET` v cestě; v Access má `/mcp` pravidlo Bypass. Zapisuje jen návrhy (read → modify → CAS zápis, `updated_by` = `claude`). `server/store.js` – sdílený přístup k D1 (API i MCP).
 - `app/js/pdf.js` – PDF jídelníčku A4 bez knihoven (canvas → JPEG → minimální PDF), sdílení přes Web Share API.
 - `app/sw.js` – service worker (network-first). **Při každé změně souborů zvyš `VERSION`** a nový soubor přidej do `ASSETS`.
 
@@ -44,10 +46,11 @@ Zadání: `docs/zadani.md`, návrhy obrazovek: `docs/screens/` (10 obrazovek, mo
 - Ověřování flow přes Playwright (headless Chromium, viewport 390×844) – vyplnit data přes UI nebo `window.jidelnicek.domain` + `commit()` a udělat screenshoty.
 - `window.jidelnicek` = { domain, state, commit, render } pro ladění.
 - Synchronizace lokálně: wrangler/Node na Macu nejsou. Testovací server v Pythonu se stejným SQL jako `state.js` (sqlite) + 2 „zařízení“ = `localhost:8787` a `127.0.0.1:8787` (oddělené IndexedDB). V skrytém panelu prohlížeče nechodí `visibilitychange`, sync spouštět přes `[data-a=syncNow]`.
+- MCP lokálně: statický server z kořene repa a v prohlížeči `import('/functions/mcp/%5Bsecret%5D.js')` + falešné D1 (jen dotazy ze `server/store.js`), volat `onRequest({request, env, params})`. Na produkci: `curl -X POST https://jidelnicek-app.pages.dev/mcp/<secret>` s JSON-RPC `tools/list`.
 
 ## Další kroky (domluveno)
 
 1. ✅ GitHub + Cloudflare Pages (push hotový; propojení v Cloudflare dělá Veronika).
 2. ✅ Synchronizace: Pages Functions + D1 + Cloudflare Access, slučování po entitách. Nastavení v dashboardu podle `app/README.md` (D1 binding `DB`, Access aplikace, env proměnné) dělá Veronika.
-3. Remote MCP server (nejspíš další Pages Function, `functions/mcp`; přístup servisním tokenem Access, `common_name`) pro Clauda (nástroje: číst knihovnu/historii, přidat pokrm, surovinu, naplánovat slot) se stejnými pravidly jako `domain.js`; přidá se jako vlastní konektor v claude.ai. Doporučený režim: Claude zapisuje **návrh**, který Veronika v aplikaci potvrdí.
+3. ✅ MCP konektor pro Clauda: tajná adresa (Veronika zvolila místo OAuth), Claude jen navrhuje, Veronika potvrzuje v aplikaci. Plán claude.ai: Pro. Nastavení (MCP_SECRET, Access Bypass pro `/mcp`, konektor) podle `app/README.md`.
 4. Instrukce pro Claude projekt (mimo aplikaci): podle jídelníčku školky sladká/slaná snídaně, podle školy ovoce/zelenina ke svačině, hlídat vlákninu, střídat pokrmy; vstupy jsou screenshoty jídelníčků.

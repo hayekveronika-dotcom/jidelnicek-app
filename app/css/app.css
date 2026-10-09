@@ -222,3 +222,14 @@ nav.tabs a.on { color: var(--green); font-weight: 700; }
 .sync-banner { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 70; width: calc(100% - 32px); max-width: 528px; display: flex; align-items: center; gap: 10px; background: var(--amber-soft); color: var(--amber); border: 1px solid #f0d9ae; border-radius: 12px; padding: 10px 12px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 .sync-banner span { flex: 1; }
 .sync-banner button { flex: none; font-weight: 700; color: var(--amber); padding: 6px 8px; }
+
+/* Návrhy od Clauda */
+.proposal-banner { display: flex; align-items: center; gap: 8px; width: 100%; background: var(--blue-soft); color: var(--blue); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-weight: 650; text-align: left; }
+.proposal-banner b { background: var(--blue); color: #fff; border-radius: 999px; min-width: 22px; height: 22px; display: inline-grid; place-items: center; font-size: 13px; padding: 0 6px; }
+.proposal-banner .link { margin-left: auto; color: var(--blue); }
+.proposal { padding: 14px; margin-bottom: 10px; }
+.proposal-title { font-weight: 700; margin-bottom: 4px; }
+.proposal-note { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+.proposal ul { margin: 6px 0 10px; padding-left: 18px; font-size: 14.5px; }
+.proposal li { margin: 2px 0; }
+.proposal-actions { display: flex; justify-content: flex-end; gap: 8px; }

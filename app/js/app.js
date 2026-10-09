@@ -1,4 +1,5 @@
 import * as D from './domain.js';
+import * as P from './proposals.js';
 import { loadState, saveState, requestPersistence } from './db.js';
 import { drawPlanCanvas, canvasToPdf } from './pdf.js';
 import { initSync, syncNow, markDirty, markReplace, getSyncInfo } from './sync.js';
@@ -258,8 +259,35 @@ function viewPlan() {
     <button class="${ui.planTab === 'current' ? 'on' : ''}" data-a="planTab" data-v="current">Aktuální<small>${D.fmtWeek(cur.weekStart)}</small></button>
     <button class="${ui.planTab === 'next' ? 'on' : ''}" data-a="planTab" data-v="next">Další<small>${D.fmtWeek(next.weekStart)}</small></button>
   </div>
+  ${proposalsBannerHtml()}
   ${btn}
   ${weekHtml(plan)}`;
+}
+
+// Návrhy od Clauda (MCP) – čekají na potvrzení
+function proposalsBannerHtml() {
+  const n = P.pendingProposals(state).length;
+  return n ? `<button class="proposal-banner" data-a="openProposals"><span>Návrhy od Clauda</span><b>${n}</b><span class="link">Zobrazit</span></button>` : '';
+}
+function openProposals() {
+  openOverlay(() => {
+    const list = P.pendingProposals(state);
+    if (!list.length) return `<h2>Návrhy od Clauda</h2><p class="kv">Žádné návrhy nečekají.</p><button class="btn btn-primary btn-block" data-a="closeAll">Zavřít</button>`;
+    return `<h2>Návrhy od Clauda</h2>
+      <p class="kv">Po přijetí se změny provedou stejně, jako byste je zadali ručně. Upravit je jde potom běžně v aplikaci.</p>
+      ${list.map(p => {
+        const d = P.describeProposal(state, p);
+        return `<div class="card proposal">
+          <div class="proposal-title">${esc(d.title)}</div>
+          ${p.note ? `<p class="proposal-note">${esc(p.note)}</p>` : ''}
+          <ul>${d.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+          <div class="proposal-actions">
+            <button class="btn btn-ghost" data-a="rejectProposal" data-id="${p.id}">Zamítnout</button>
+            <button class="btn btn-primary" data-a="acceptProposal" data-id="${p.id}">Přijmout</button>
+          </div>
+        </div>`;
+      }).join('')}`;
+  });
 }
 
 function slotTitle(planId, key) {
@@ -1006,6 +1034,17 @@ const A = {
   importData: () => { closeAllOverlays(); $('#import-file').click(); },
   syncNow: async () => { await syncNow(); const i = getSyncInfo(); toast(i.status === 'ok' ? 'Synchronizováno' : syncText()); },
   syncLogin: () => location.reload(),
+  openProposals: () => openProposals(),
+  acceptProposal: el => {
+    const r = commit(s => P.acceptProposal(s, el.dataset.id));
+    if (r) toast(r.messages.join(' '));
+    if (P.pendingProposals(state).length) rerenderTop(); else closeOverlay();
+  },
+  rejectProposal: el => {
+    commit(s => P.rejectProposal(s, el.dataset.id));
+    toast('Návrh zamítnut');
+    if (P.pendingProposals(state).length) rerenderTop(); else closeOverlay();
+  },
   wipeData: async () => {
     closeAllOverlays();
     const ok = await confirmDialog({ title: 'Smazat všechna data?', text: 'Smaže pokrmy, suroviny, jídelníčky i seznamy na všech propojených zařízeních. Nejde vrátit – nejdřív si udělejte export.', ok: 'Smazat vše', danger: true });

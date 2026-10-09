@@ -27,11 +27,42 @@ python3 -m http.server 8080
 
 Soubor `_headers` zajistí, že se `sw.js`, `index.html` a manifest necachují, takže se nová verze načte hned.
 
-## Data
+## Data a synchronizace
 
-- Data jsou v IndexedDB **jen v daném prohlížeči a zařízení**. Telefon a počítač nesdílí data.
-- Zálohy jsou v menu `⋯` na obrazovce Jídelníček: *Exportovat data* / *Importovat data* (JSON).
-- Entity mají vlastní ID (suroviny, pokrmy, mražené, jídelníčky, nákupní seznamy), takže přechod na server (sdílení pro 2. uživatele, zápis z Claude projektu) znamená vyměnit `js/db.js`. Logika zůstává v `js/domain.js`.
+- Data se ukládají v zařízení (IndexedDB) **a** synchronizují se přes server (Cloudflare Pages Functions + databáze D1). Telefon a počítač tak vidí totéž a aplikace funguje i offline. Změny se odešlou po připojení.
+- Server drží celý stav jako jeden záznam s číslem verze. Když se data mezitím změnila na jiném zařízení, aplikace změny sloučí po jednotlivých pokrmech, surovinách, týdnech a položkách seznamu (`js/merge.js`). Pokud obě zařízení upravila totéž pole, vyhraje pozdější zápis. Zásoby mražených se sčítají jako rozdíly.
+- Stav synchronizace je v menu `⋯` na obrazovce Jídelníček, kde je i *Synchronizovat teď*. Když vyprší přihlášení, nahoře se objeví lišta *Přihlásit*.
+- *Importovat data* i *Smazat všechna data* přepíšou data **na všech zařízeních**.
+- Server drží posledních 200 verzí (tabulka `app_state_history`), takže jde vrátit i nechtěná změna (viz níže).
+- Lokálně (`python3 -m http.server`) server není, takže aplikace běží jen s daty v prohlížeči, jako dřív.
+- Zálohy: menu `⋯` → *Exportovat data* / *Importovat data* (JSON).
+
+## Nastavení serveru (Cloudflare, jednorázově)
+
+Přístup chrání **Cloudflare Access**: před aplikací je přihlášení jednorázovým kódem na e-mail. API (`functions/api/`) navíc samo ověřuje podpis přihlášení.
+
+1. **Databáze D1:** dashboard → *Storage & Databases* → *D1 SQL Database* → *Create* → název `jidelnicek`. Tabulky se založí samy při prvním požadavku.
+2. **Propojení s Pages:** projekt `jidelnicek-app` → *Settings* → *Bindings* → *Add* → *D1 database*. *Variable name* = `DB`, databáze = `jidelnicek`.
+3. **Cloudflare Access:** dashboard → *Zero Trust* (poprvé zvolte název týmu a plán *Free*) → *Access* → *Applications* → *Add an application* → *Self-hosted*:
+   - *Application domain*: `jidelnicek-app.pages.dev`. Přidejte i druhý řádek `*.jidelnicek-app.pages.dev`, aby byly chráněné i náhledové adresy.
+   - *Session duration*: např. 1 měsíc.
+   - *Policy*: *Allow*, *Include* → *Emails* → váš e-mail (2. uživatel = přidat další e-mail).
+   - Přihlašovací metoda: *One-time PIN* (výchozí).
+4. **Proměnné:** v Access aplikaci zkopírujte *Application Audience (AUD) Tag*. Název týmu najdete v *Zero Trust → Settings* (`<tým>.cloudflareaccess.com`). Pak projekt Pages → *Settings* → *Variables and Secrets* → přidejte:
+   - `ACCESS_TEAM_DOMAIN` = `<tým>.cloudflareaccess.com`
+   - `ACCESS_AUD` = zkopírovaný AUD tag
+5. **Nové nasazení:** *Deployments* → u posledního nasazení *Retry deployment* (nastavení se projeví až v novém nasazení).
+6. **Kontrola:** otevřete aplikaci, přihlaste se kódem z e-mailu a v menu `⋯` by mělo být „Data se synchronizují mezi zařízeními“.
+
+**Pořadí zařízení:** aplikaci se synchronizací otevřete nejdřív na zařízení, kde už máte data (nahrají se na server). Ostatní zařízení si je pak stáhnou. Pokud mají data obě zařízení, spojí se. Případné zdvojené suroviny jde sloučit ve *Správě surovin*.
+
+**Obnova starší verze:** D1 → `jidelnicek` → *Console*:
+
+```sql
+SELECT rev, updated_at, updated_by FROM app_state_history ORDER BY rev DESC LIMIT 20;
+-- vrácení verze 123 (vznikne nová verze se starými daty):
+UPDATE app_state SET data = (SELECT data FROM app_state_history WHERE rev = 123), rev = rev + 1 WHERE id = 'main';
+```
 
 ## Struktura
 
@@ -39,7 +70,10 @@ Soubor `_headers` zajistí, že se `sw.js`, `index.html` a manifest necachují, 
 | --- | --- |
 | `js/domain.js` | datový model a pravidla (týdny, sloty, mražené ±1, slučování nákupního seznamu, duplicity, sloučení surovin) |
 | `js/pdf.js` | PDF jídelníčku A4 (canvas → JPEG → PDF) |
-| `js/db.js` | ukládání (IndexedDB, záložně localStorage) |
+| `js/db.js` | ukládání v zařízení (IndexedDB, záložně localStorage) |
+| `js/sync.js` | synchronizace se serverem (`/api/state`), stav v menu |
+| `js/merge.js` | slučování změn ze dvou zařízení (čisté funkce) |
+| `../functions/api/` | server: ověření přihlášení (`_middleware.js`), čtení/zápis stavu v D1 (`state.js`) |
 | `js/app.js` | obrazovky a ovládání |
 | `css/app.css` | vzhled podle návrhů |
 | `sw.js`, `manifest.webmanifest`, `icons/` | PWA |

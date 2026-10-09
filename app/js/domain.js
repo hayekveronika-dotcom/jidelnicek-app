@@ -294,7 +294,8 @@ export function deleteFrozen(state, id) { const f = getFrozen(state, id); if (f)
 // ---------- Jídelníčky ----------
 export const livePlans = s => s.plans.filter(p => p.status === 'current' || p.status === 'next');
 export const getPlan = (s, id) => s.plans.find(p => p.id === id);
-const newPlan = (weekStart, status) => ({ id: uid(), weekStart, status, slots: {} });
+// ID podle týdne: když týden založí dvě zařízení současně, synchronizace je spojí do jednoho
+const newPlan = (weekStart, status) => ({ id: `w-${weekStart}`, weekStart, status, slots: {} });
 const planIsEmpty = p => allEntries(p).length === 0;
 
 // Slot obsahuje pole pokrmů: p.slots[key] = [{ type: 'dish'|'frozen', refId }, ...]

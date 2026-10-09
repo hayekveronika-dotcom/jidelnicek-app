@@ -18,33 +18,39 @@ function openDb() {
 let dbPromise = null;
 const db = () => (dbPromise = dbPromise || openDb());
 
-export async function loadState() {
+async function loadKey(key) {
   try {
     const d = await db();
     return await new Promise((resolve, reject) => {
-      const r = d.transaction(STORE, 'readonly').objectStore(STORE).get(KEY);
+      const r = d.transaction(STORE, 'readonly').objectStore(STORE).get(key);
       r.onsuccess = () => resolve(r.result || null);
       r.onerror = () => reject(r.error);
     });
   } catch {
-    try { const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+    try { const s = localStorage.getItem(`${LS_KEY}:${key}`) ?? (key === KEY ? localStorage.getItem(LS_KEY) : null); return s ? JSON.parse(s) : null; } catch { return null; }
   }
 }
 
-export async function saveState(state) {
-  const copy = JSON.parse(JSON.stringify(state));
+async function saveKey(key, value) {
+  const copy = JSON.parse(JSON.stringify(value));
   try {
     const d = await db();
     await new Promise((resolve, reject) => {
       const tx = d.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(copy, KEY);
+      tx.objectStore(STORE).put(copy, key);
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
     });
   } catch {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(copy)); } catch { /* nic */ }
+    try { localStorage.setItem(`${LS_KEY}:${key}`, JSON.stringify(copy)); } catch { /* nic */ }
   }
 }
+
+export const loadState = () => loadKey(KEY);
+export const saveState = state => saveKey(KEY, state);
+// Stav synchronizace: {rev, base (poslední stav ze serveru), dirty, replace, lastSync, user}
+export const loadSyncMeta = () => loadKey('sync');
+export const saveSyncMeta = meta => saveKey('sync', meta);
 
 export async function requestPersistence() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch { /* nic */ }

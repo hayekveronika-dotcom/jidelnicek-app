@@ -1,6 +1,7 @@
 import * as D from './domain.js';
 import { loadState, saveState, requestPersistence } from './db.js';
 import { drawPlanCanvas, canvasToPdf } from './pdf.js';
+import { initSync, syncNow, markDirty, markReplace, getSyncInfo } from './sync.js';
 
 // ---------- Pomocné ----------
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -43,7 +44,43 @@ const ui = {
   draft: null, draftFor: null, draftDirty: false, draftErrors: [],
 };
 let saveTimer = null;
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveState(state), 120); }
+function saveLocal() { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveState(state), 120); }
+function persist() { saveLocal(); markDirty(); }
+// Nový stav ze serveru (synchronizace) – neoznačuje se jako lokální změna.
+function replaceState(next) {
+  state = D.migrateState(next);
+  const changed = D.ensureWeeks(state);
+  D.currentList(state);
+  saveLocal();
+  if (changed) markDirty();
+  render();
+  refreshPicker();
+}
+
+// ---------- Stav synchronizace ----------
+function syncText(i = getSyncInfo()) {
+  const t = i.lastSync ? new Date(i.lastSync).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  const who = i.user ? ` (${i.user})` : '';
+  switch (i.status) {
+    case 'ok': return `Data se synchronizují mezi zařízeními${who}. Naposledy ${t}.`;
+    case 'pending': case 'syncing': return `Ukládám změny na server…${t ? ` Naposledy ${t}.` : ''}`;
+    case 'offline': return `Jste offline. Změny se uloží v zařízení a odešlou se po připojení.${t ? ` Naposledy synchronizováno ${t}.` : ''}`;
+    case 'login': return 'Přihlášení vypršelo. Změny se ukládají v zařízení, na server se odešlou po přihlášení.';
+    case 'error': return `Synchronizace se nepovedla: ${i.error}`;
+    case 'local': return 'Synchronizace není dostupná, data jsou jen v tomto prohlížeči. Zálohu si občas exportujte.';
+    default: return 'Připojuji se k serveru…';
+  }
+}
+function renderSyncStatus(i) {
+  const info = $('#sync-info'); if (info) info.textContent = syncText(i);
+  let b = $('#sync-banner');
+  const show = i.status === 'login' || i.status === 'error';
+  if (!show) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'sync-banner'; b.className = 'sync-banner'; document.body.appendChild(b); }
+  b.innerHTML = i.status === 'login'
+    ? `<span>Přihlášení vypršelo, změny se neukládají na server.</span><button data-a="syncLogin">Přihlásit</button>`
+    : `<span>${esc(syncText(i))}</span><button data-a="syncNow">Zkusit znovu</button>`;
+}
 function commit(fn, { rerender = true } = {}) {
   try {
     const r = fn(state);
@@ -423,11 +460,12 @@ function openSettings() {
       <button data-a="goto" data-v="#/archive">Archiv jídelníčků a seznamů</button>
       <button data-a="goto" data-v="#/ingredients">Správa surovin</button>
       <button data-a="archiveWeek">Uzavřít aktuální týden ručně</button>
+      <button data-a="syncNow">Synchronizovat teď</button>
       <button data-a="exportData">Exportovat data (záloha JSON)</button>
       <button data-a="importData">Importovat data ze zálohy</button>
       <button class="danger" data-a="wipeData">Smazat všechna data</button>
     </div>
-    <p class="kv" style="margin-top:14px">Data jsou uložená jen v tomto prohlížeči. Zálohu si občas exportujte.</p>`);
+    <p class="kv" style="margin-top:14px" id="sync-info">${syncText()}</p>`);
 }
 
 // =====================================================================
@@ -966,10 +1004,12 @@ const A = {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   },
   importData: () => { closeAllOverlays(); $('#import-file').click(); },
+  syncNow: async () => { await syncNow(); const i = getSyncInfo(); toast(i.status === 'ok' ? 'Synchronizováno' : syncText()); },
+  syncLogin: () => location.reload(),
   wipeData: async () => {
     closeAllOverlays();
-    const ok = await confirmDialog({ title: 'Smazat všechna data?', text: 'Smaže pokrmy, suroviny, jídelníčky i seznamy v tomto zařízení. Nejde vrátit – nejdřív si udělejte export.', ok: 'Smazat vše', danger: true });
-    if (ok) { state = D.emptyState(); D.ensureWeeks(state); persist(); ui.draft = null; render(); toast('Data smazána'); }
+    const ok = await confirmDialog({ title: 'Smazat všechna data?', text: 'Smaže pokrmy, suroviny, jídelníčky i seznamy na všech propojených zařízeních. Nejde vrátit – nejdřív si udělejte export.', ok: 'Smazat vše', danger: true });
+    if (ok) { state = D.emptyState(); D.ensureWeeks(state); markReplace(); saveLocal(); ui.draft = null; render(); toast('Data smazána'); }
   },
 
   // knihovna
@@ -1207,9 +1247,9 @@ $('#import-file').addEventListener('change', async e => {
   if (!file) return;
   try {
     const obj = D.validateImport(JSON.parse(await file.text()));
-    const ok = await confirmDialog({ title: 'Nahradit data zálohou?', text: `Soubor obsahuje ${pokrmu(obj.dishes.length)} a ${surovin(obj.ingredients.length)}. Současná data v zařízení se přepíšou.`, ok: 'Importovat' });
+    const ok = await confirmDialog({ title: 'Nahradit data zálohou?', text: `Soubor obsahuje ${pokrmu(obj.dishes.length)} a ${surovin(obj.ingredients.length)}. Současná data se přepíšou na všech propojených zařízeních.`, ok: 'Importovat' });
     if (!ok) return;
-    state = D.migrateState(obj); D.ensureWeeks(state); D.currentList(state); persist(); render(); toast('Data importována');
+    state = D.migrateState(obj); D.ensureWeeks(state); D.currentList(state); markReplace(); saveLocal(); render(); toast('Data importována');
   } catch (err) { toast('Import se nepovedl: ' + err.message); }
 });
 
@@ -1221,11 +1261,12 @@ document.addEventListener('visibilitychange', () => {
 // ---------- Start ----------
 (async function init() {
   state = D.migrateState((await loadState()) || D.emptyState());
-  D.ensureWeeks(state);
+  const weeksChanged = D.ensureWeeks(state);
   D.currentList(state);
-  persist();
+  saveLocal();
   requestPersistence();
   render();
+  initSync({ getState: () => state, setState: replaceState, onStatus: renderSyncStatus }).then(() => { if (weeksChanged) markDirty(); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline režim nedostupný */ });
   }

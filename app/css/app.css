@@ -217,3 +217,8 @@ nav.tabs a.on { color: var(--green); font-weight: 700; }
 .count-val { width: 80px; text-align: center; font-size: 20px; font-weight: 650; }
 .count-unit { color: var(--muted); font-size: 16px; }
 .pdf-preview { display: block; width: 100%; max-width: 360px; margin: 0 auto 16px; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.08); aspect-ratio: 1240 / 1754; }
+
+/* Synchronizace – lišta při vypršeném přihlášení / chybě */
+.sync-banner { position: fixed; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 70; width: calc(100% - 32px); max-width: 528px; display: flex; align-items: center; gap: 10px; background: var(--amber-soft); color: var(--amber); border: 1px solid #f0d9ae; border-radius: 12px; padding: 10px 12px; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.sync-banner span { flex: 1; }
+.sync-banner button { flex: none; font-weight: 700; color: var(--amber); padding: 6px 8px; }

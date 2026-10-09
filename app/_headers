@@ -1,0 +1,7 @@
+# Cloudflare Pages: service worker a manifest vždy čerstvé, aby se nová verze načetla hned
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

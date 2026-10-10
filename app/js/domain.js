@@ -260,6 +260,14 @@ export function saveDish(state, draft) {
   state.dishes.push(d);
   return d;
 }
+// Množství v receptu musí být v jednotce suroviny (jinak by na nákupním seznamu byla jedna surovina dvakrát).
+// Starší recepty s jinou jednotkou se jen označí k opravě – převody jednotek aplikace neumí.
+export const itemUnitMismatch = (state, it) => {
+  const ing = getIngredient(state, it.ingredientId);
+  return !!(ing && it.qty != null && it.unit && it.unit !== ing.unit);
+};
+export const dishNeedsFix = (state, d) => d.items.some(it => itemUnitMismatch(state, it));
+
 // Měkké smazání – naplánované sloty i nákupní seznam dál používají poslední verzi receptu.
 export function deleteDish(state, id) { const d = getDish(state, id); if (d) { d.deleted = true; d.deletedAt = new Date().toISOString(); } }
 export function restoreDish(state, id) { const d = getDish(state, id); if (d) d.deleted = false; }
@@ -369,7 +377,7 @@ export function assignSlot(state, planId, key, ref, { replaceIndex = null } = {}
   if (ref.type === 'ingredient' && !getIngredient(state, ref.refId)) return { ok: false, error: 'Surovina neexistuje.' };
   const entry = { type: ref.type, refId: ref.refId };
   if (ref.type === 'frozen') entry.count = Math.max(1, Math.round(ref.count || 1));
-  if (ref.type === 'ingredient') { entry.qty = ref.qty ?? null; entry.unit = ref.unit ?? null; }
+  if (ref.type === 'ingredient') { entry.qty = ref.qty ?? null; entry.unit = entry.qty == null ? null : getIngredient(state, ref.refId).unit; }
   if (replaceIndex != null && items[replaceIndex]) {
     returnFrozen(state, p, items[replaceIndex]);
     items[replaceIndex] = entry;
@@ -409,12 +417,13 @@ export function removeFromSlot(state, planId, key, index) {
   if (!items.length) delete p.slots[key];
 }
 // Množství u samostatné suroviny ve slotu (nepovinné)
-export function setSlotEntryQty(state, planId, key, index, qty, unit) {
+// Množství je vždy v jednotce suroviny.
+export function setSlotEntryQty(state, planId, key, index, qty) {
   const p = getPlan(state, planId);
   const e = p && p.slots[key] && p.slots[key][index];
   if (!e || e.type !== 'ingredient') return;
   e.qty = qty == null || qty === '' ? null : Number(qty);
-  e.unit = e.qty == null ? null : (unit || null);
+  e.unit = e.qty == null ? null : (getIngredient(state, e.refId)?.unit || null);
 }
 export function clearSlot(state, planId, key) {
   const p = getPlan(state, planId);
@@ -483,8 +492,16 @@ export function isPurchaseDone(list) {
 const newListItem = (ingredientId, unit, origin) =>
   ({ id: uid(), ingredientId, unit, key: `${ingredientId}|${unit}`, origin, state: 'todo', contrib: {}, qty: null });
 
+// Vyřazené položky („mám doma“), které by jídelníček zase potřeboval – na ty se při aktualizaci ptáme.
+export function removedForPlan(state, planId) {
+  const plan = getPlan(state, planId);
+  const demand = planDemand(state, plan);
+  return currentList(state).items.filter(i => i.origin !== 'manual' && i.state === 'removed' && demand[i.key]);
+}
+
 // Srovná seznam s potřebou jídelníčku. mode 'absorb' = vše nové bereme jako "mám doma".
-export function reconcile(state, list, plan, mode = 'normal') {
+// restore = vyřazené položky, které jídelníček potřebuje, se vrátí mezi nenakoupené.
+export function reconcile(state, list, plan, mode = 'normal', { restore = false } = {}) {
   const P = plan.id;
   const demand = planDemand(state, plan);
   const cov = (list.coverage[P] = list.coverage[P] || {});
@@ -512,7 +529,10 @@ export function reconcile(state, list, plan, mode = 'normal') {
       drop(todo); drop(removed);
       continue;
     }
-    if (removed) { removed.contrib[P] = info; drop(todo); continue; } // vyřazené se znovu nepřidá
+    if (removed && restore) {
+      if (todo) drop(removed); // potřebu převezme existující nenakoupená položka
+      else { removed.state = 'todo'; todo = removed; }
+    } else if (removed) { removed.contrib[P] = info; drop(todo); continue; } // vyřazené se znovu nepřidá
     if (!todo) { todo = newListItem(need.ingredientId, need.unit, 'plan'); list.items.push(todo); }
     todo.contrib[P] = info;
   }
@@ -522,16 +542,16 @@ export function reconcile(state, list, plan, mode = 'normal') {
 }
 
 // Výsledek: {ok:true} nebo {needsDialog:true, kind:'add'|'update'}
-export function syncPlanToList(state, planId, { force = null } = {}) {
+export function syncPlanToList(state, planId, { force = null, restore = false } = {}) {
   const plan = getPlan(state, planId);
   let list = currentList(state);
   const status = planListStatus(state, plan);
   if (!force && isPurchaseDone(list) && (status === 'add' || status === 'update')) {
     return { needsDialog: true, kind: status };
   }
-  if (force === 'newList') { list = archiveList(state); reconcile(state, list, plan); }
+  if (force === 'newList') { list = archiveList(state, { restore }); reconcile(state, list, plan, 'normal', { restore }); }
   else if (force === 'haveAll') reconcile(state, list, plan, 'absorb');
-  else reconcile(state, list, plan);
+  else reconcile(state, list, plan, 'normal', { restore });
   return { ok: true };
 }
 
@@ -546,11 +566,11 @@ export function itemDishes(it) {
   for (const c of Object.values(it.contrib || {})) c.dishes.forEach(d => s.add(d));
   return [...s];
 }
-export function addManualItem(state, ingredientId, qty, unit) {
+export function addManualItem(state, ingredientId, qty) {
   const ing = getIngredient(state, ingredientId);
   if (!ing) throw new Error('Surovina neexistuje.');
   const list = currentList(state);
-  const u = unit || ing.unit;
+  const u = ing.unit; // množství vždy v jednotce suroviny
   const q = qty == null || qty === '' ? null : Number(qty);
   const same = list.items.find(i => i.origin === 'manual' && i.state === 'todo' && i.key === `${ingredientId}|${u}`);
   if (same) { same.qty = q == null ? same.qty : r3((same.qty || 0) + q); return same; }
@@ -572,7 +592,7 @@ export function markAllBought(state) {
   list.markedDone = true;
 }
 // Archivuje aktuální seznam a založí nový; nenakoupené položky se převedou.
-export function archiveList(state) {
+export function archiveList(state, { restore = false } = {}) {
   const old = currentList(state);
   old.status = 'archive';
   old.archivedAt = new Date().toISOString();
@@ -581,7 +601,7 @@ export function archiveList(state) {
   // krytí = co už bylo nakoupeno nebo vyřazeno (mám doma)
   const cov = JSON.parse(JSON.stringify(old.coverage || {}));
   for (const it of old.items) {
-    if (it.origin === 'manual' || it.state === 'todo') continue;
+    if (it.origin === 'manual' || it.state === 'todo' || (restore && it.state === 'removed')) continue;
     for (const [pid, c] of Object.entries(it.contrib || {})) {
       const pc = (cov[pid] = cov[pid] || {});
       pc[it.key] = { qty: r3((pc[it.key]?.qty || 0) + c.qty), missing: !!pc[it.key]?.missing || c.missing > 0 };

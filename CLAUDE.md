@@ -39,6 +39,8 @@ Zadání: `docs/zadani.md`, návrhy obrazovek: `docs/screens/` (10 obrazovek, mo
 - Mražené: přiřazení odečte `count`, odebrání vrátí; při nedostatku zásob chyba.
 - Nákupní seznam: `reconcile()` je diff-based (nakoupené/vyřazené kryjí potřebu, ruční položky se nemažou). Po nákupu (`isPurchaseDone`) se změna jídelníčku řeší dialogem: nový seznam jen se změnami / „Všechno mám“.
 - Týdny: `ensureWeeks()` při startu archivuje skončený týden, „další“ se stane aktuálním.
+- Jednotky: množství (recept, samostatná surovina ve slotu, ruční položka nákupu, návrhy Clauda) vždy v jednotce suroviny – UI jednotku nenabízí, domain/proposals ji vynucují. Staré nesedící položky jen označit (`itemUnitMismatch`, `dishNeedsFix`, filtr „K opravě“), nepřevádět ani nemazat.
+- Nákupní seznam: přejetí doleva = stav `removed` (mám doma). Při aktualizaci, když jídelníček potřebuje smazanou položku (`removedForPlan`), dialog „Obnovit smazané položky?“ → `syncPlanToList(..., {restore})`; nakoupené zůstávají.
 
 ## Testování
 

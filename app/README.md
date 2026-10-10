@@ -66,7 +66,7 @@ UPDATE app_state SET data = (SELECT data FROM app_state_history WHERE rev = 123)
 
 ## Propojení s Claudem (konektor MCP)
 
-Claude v claude.ai čte knihovnu, zásoby a jídelníčky a posílá **návrhy** (nový pokrm, surovina, obsazení dnů). Návrhy se objeví na obrazovce Jídelníček jako „Návrhy od Clauda“. Po *Přijmout* se provedou stejně, jako kdyby se zadaly ručně (kontrola duplicit, mražené zásoby, jídla podle dne). *Zamítnout* je zahodí.
+Claude v claude.ai čte knihovnu, zásoby a jídelníčky a posílá **návrhy** (nový pokrm, surovina, obsazení dnů). Návrhy se objeví na obrazovce Jídelníček jako „Návrhy od Clauda“. Přijatý nový pokrm se rovnou otevře v editaci ke kontrole. Po *Přijmout* se návrhy provedou stejně, jako kdyby se zadaly ručně (kontrola duplicit, mražené zásoby, jídla podle dne). *Zamítnout* je zahodí.
 
 Přístup chrání tajná část adresy `https://jidelnicek-app.pages.dev/mcp/<MCP_SECRET>`. Kdo ji zná, dostane se k datům, proto ji nikam nesdílejte. Když unikne, změňte `MCP_SECRET` a konektor v claude.ai přidejte znovu.
 
@@ -112,7 +112,7 @@ Po úpravě souborů zvyšte `VERSION` v `sw.js`, aby se telefonům načetla nov
 4. **Více pokrmů na slot** (např. svačina: rohlík s avokádem, mrkev, perník, para ořechy). Ve výběru se klepnutím pokrm přidá, dalším klepnutím odebere, sheet zůstává otevřený do „Hotovo“. U jednotlivého pokrmu ve dni jde *Nahradit* / *Odebrat*.
 5. **Zbytky:** stejný pokrm ve 2 slotech se počítá dvakrát.
 6. **Volitelné údaje pokrmu:** čas přípravy, porce, Thermomix, omezení, postup/odkaz. Jsou ve sbalené sekci „Další údaje“. Fotka zatím není.
-7. **Převody jednotek nejsou.** Stejná surovina v různých jednotkách = samostatné řádky.
+7. **Převody jednotek nejsou.** Množství v receptu, u samostatné suroviny ve dni i u ruční položky nákupu je vždy v jednotce suroviny (jednotka se nedá vybrat, mění se jen u suroviny ve *Správě surovin*). Starší recepty s jinou jednotkou jsou označené „k opravě jednotek“ (filtr *K opravě* v Knihovně). Dokud se neopraví, jsou na nákupním seznamu jako samostatný řádek.
 8. **Řazení nákupu** podle kategorie suroviny.
 9. **Mražený pokrm** není propojený s knihovnou. Při 0 ks je ve výběru zašedlý a nejde přiřadit. Po výběru se otevře okno s počtem (např. 2× perník = −2 ks z mrazáku); počet jde později změnit klepnutím na položku ve dni, rozdíl se odečte nebo vrátí do mrazáku.
 10. **Filtr ve výběru pokrmu** jde zrušit (✕) a zase vrátit.
@@ -120,10 +120,12 @@ Po úpravě souborů zvyšte `VERSION` v `sw.js`, aby se telefonům načetla nov
 Další drobnosti:
 
 - Ruční položky seznamu aktualizace nikdy nemaže. Stejná ruční surovina se sečte do jednoho řádku, ale od položek z jídelníčku se drží zvlášť.
-- Položka „Vyřazeno – mám doma“ se znovu nepřidá. Jde ji vrátit přes *Zobrazit*.
+- Položku nákupního seznamu jde smazat **přejetím doleva** (řádek zčervená, po přejetí přes polovinu se smaže). Smazání = „Vyřazeno – mám doma“: položka jde vrátit přes *Zobrazit*.
+- Když aktualizace jídelníčku potřebuje smazanou položku, aplikace se zeptá **„Obnovit smazané položky?“**: *Ano* = smazané se vrátí na seznam (nakoupené zůstanou nakoupené), *Ne* = přidají se jen nové položky.
 - Kontrola duplicit: normalizace (malá písmena, bez diakritiky, mezery) + Levenshteinova vzdálenost (1–3 podle délky) + shodný začátek slova. Na obrazovce Suroviny jde dvojici označit „Nejsou duplicity“.
 - **Samostatné suroviny v jídelníčku:** ve výběru do slotu je záložka *Suroviny* (vyhledávání, kontrola duplicit, vytvoření nové). Množství je nepovinné a jde upravit klepnutím na položku ve dni. Na nákupní seznam se propisuje s poznámkou „samostatně v jídelníčku“ a sčítá se se stejnou surovinou z pokrmů.
 - **Sdílení jídelníčku (PDF A4):** ikona sdílení vpravo nahoře na Jídelníčku. *Odeslat PDF e-mailem* otevře systémové sdílení telefonu (vyberte Mail/Gmail, PDF je v příloze). Kde prohlížeč sdílení souborů neumí (část desktopových prohlížečů), PDF se stáhne a přiloží se ručně. PDF se generuje přímo v aplikaci (`js/pdf.js`, bez knihoven, funguje i offline); text v PDF je obrázek, nejde z něj kopírovat.
+- Výběr pokrmu do slotu je na celou výšku obrazovky. Při hledání se schová popis a výsledky jsou hned pod polem hledání (nad klávesnicí). *+ Vytvořit nový pokrm* je pak až pod výsledky.
 - Ve výběru pokrmu do slotu je tlačítko *+ Vytvořit nový pokrm*: otevře nový pokrm s předvyplněným štítkem slotu a po uložení ho rovnou přidá do daného dne.
 - Smazaný pokrm jde obnovit (Knihovna → Smazané pokrmy).
 - Ve výběru pokrmu je u každého pokrmu „naposledy“ (kdy byl naposledy v jídelníčku) kvůli obměně.

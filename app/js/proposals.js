@@ -33,6 +33,11 @@ function parseUnit(u, allowed = D.UNITS) {
   if (!allowed.includes(u)) err(`Neznámá jednotka „${u}“ (povolené: ${allowed.join(', ')}).`);
   return u;
 }
+// Množství musí být v jednotce suroviny (převody aplikace neumí).
+function sameUnit(r, unit) {
+  if (unit != null && unit !== '' && unit !== r.ingUnit) err(`Surovina „${r.name}“ se vede v jednotce „${r.ingUnit}“ – zadej množství v „${r.ingUnit}“ (přepočti), jiné jednotky nejsou povolené.`);
+  return r.ingUnit;
+}
 const findDishByName = (s, name) => s.dishes.find(d => !d.deleted && D.normalize(d.name) === D.normalize(name));
 const findFrozenByName = (s, name) => s.frozen.find(f => !f.deleted && D.normalize(f.name) === D.normalize(name));
 const pendingOfKind = (s, kind, name) =>
@@ -43,15 +48,15 @@ function resolveIngredient(s, name, { confirmNew = false, unit = null, category 
   name = (name || '').trim();
   if (!name) err('Chybí název suroviny.');
   const exact = D.findExactIngredient(s, name);
-  if (exact) return { ingredientId: exact.id, name: exact.name };
+  if (exact) return { ingredientId: exact.id, name: exact.name, ingUnit: exact.unit };
   const pend = pendingOfKind(s, 'ingredient', name);
-  if (pend) return { ingredientId: null, name: pend.data.name };
+  if (pend) return { ingredientId: null, name: pend.data.name, ingUnit: pend.data.unit };
   if (!confirmNew) {
     const sim = D.findSimilarIngredients(s, name);
     if (sim.length) err(`Surovina „${name}“ není v seznamu, ale podobné existují: ${sim.map(i => `„${i.name}“`).join(', ')}. Použij existující název, nebo pošli znovu s confirm_new: true.`);
   }
   if (category && !D.CATEGORIES.includes(category)) err(`Neznámá kategorie „${category}“ (povolené: ${D.CATEGORIES.join(', ')}).`);
-  return { ingredientId: null, name, newIngredient: { unit: unit || 'ks', category: category || 'Ostatní' } };
+  return { ingredientId: null, name, ingUnit: unit || 'ks', newIngredient: { unit: unit || 'ks', category: category || 'Ostatní' } };
 }
 
 // ---------- Příprava návrhů (validace podle pravidel aplikace) ----------
@@ -82,7 +87,8 @@ export function prepareDish(s, input) {
     const r = resolveIngredient(s, it.name, { confirmNew: !!it.confirm_new, unit: parseUnit(it.unit), category: it.category });
     const qty = it.qty == null || it.qty === '' ? null : Number(it.qty);
     if (qty != null && !(qty > 0)) err(`Množství u „${it.name}“ musí být kladné číslo.`);
-    return { ...r, qty, unit: qty == null ? null : parseUnit(it.unit) };
+    const { ingUnit, ...ref } = r;
+    return { ...ref, qty, unit: qty == null ? null : sameUnit(r, it.unit) };
   });
   if (!items.length) err('Pokrm potřebuje aspoň 1 surovinu.');
   return {
@@ -123,7 +129,7 @@ export function preparePlan(s, { week, mode, days }) {
         const r = resolveIngredient(s, it.ingredient);
         if (r.newIngredient) err(`Surovina „${it.ingredient}“ není v seznamu. Navrhni ji přes propose_ingredient, nebo použij existující název.`);
         const qty = it.qty == null || it.qty === '' ? null : Number(it.qty);
-        return { type: 'ingredient', refId: r.ingredientId, name: r.name, qty, unit: qty == null ? null : parseUnit(it.unit) };
+        return { type: 'ingredient', refId: r.ingredientId, name: r.name, qty, unit: qty == null ? null : sameUnit(r, it.unit) };
       }
       err('Každá položka potřebuje „dish“, „frozen“ nebo „ingredient“.');
     });
@@ -161,6 +167,7 @@ export function acceptProposal(s, id) {
   if (!p || p.status !== 'pending') return { ok: false, messages: ['Návrh už byl vyřízen.'] };
   const msgs = [];
   const d = p.data;
+  let dishId = null;
   if (p.kind === 'ingredient') {
     const r = D.createIngredient(s, d, { force: true });
     if (!r.ok) msgs.push(`Surovina „${r.matches[0].name}“ už existuje.`);
@@ -168,7 +175,7 @@ export function acceptProposal(s, id) {
   } else if (p.kind === 'dish') {
     if (findDishByName(s, d.name)) return { ok: false, messages: [`Pokrm „${d.name}“ už v knihovně je.`] };
     const items = d.items.map(it => ({ ingredientId: ensureIngredient(s, it), qty: it.qty, unit: it.unit }));
-    D.saveDish(s, { ...d, items });
+    dishId = D.saveDish(s, { ...d, items }).id;
     msgs.push(`Přidán pokrm „${d.name}“.`);
   } else if (p.kind === 'plan') {
     const plan = s.plans.find(x => x.weekStart === d.weekStart && x.status !== 'archive');
@@ -192,7 +199,7 @@ export function acceptProposal(s, id) {
   p.status = 'accepted';
   p.resolvedAt = new Date().toISOString();
   p.result = msgs;
-  return { ok: true, messages: msgs };
+  return { ok: true, messages: msgs, dishId };
 }
 
 export function rejectProposal(s, id) {

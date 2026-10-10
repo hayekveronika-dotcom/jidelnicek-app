@@ -15,6 +15,7 @@ Nic nezapisuješ přímo: propose_* vytvoří NÁVRH, který uživatelka potvrd�
 Pravidla: týden má dny 0–6 (pondělí–neděle); Po–Pá jídla snidane, svacina, vecere; So–Ne navíc obed. Slot může mít víc položek.
 Používej názvy pokrmů z knihovny. Nový pokrm nejdřív navrhni přes propose_dish – v propose_plan ho pak můžeš použít (přijme se dřív).
 Suroviny: drž se existujících názvů; když vrátím podobné názvy, použij existující, nebo pošli confirm_new: true.
+Množství suroviny vždy v její jednotce (viz get_library → ingredients[].unit), převody aplikace neumí; u nové suroviny je jednotka množství zároveň jednotkou suroviny.
 Mražené pokrmy (frozen) mají omezené zásoby – kontroluj qty. Střídej pokrmy (last_planned).`;
 
 const MEAL_ENUM = ['snidane', 'svacina', 'obed', 'vecere'];
@@ -70,7 +71,7 @@ const TOOLS = [
                     count: { type: 'integer', minimum: 1, description: 'Počet kusů/porcí mraženého.' },
                     ingredient: { type: 'string', description: 'Samostatná surovina (např. jablko ke svačině).' },
                     qty: { type: 'number' },
-                    unit: { type: 'string', enum: D.UNITS },
+                    unit: { type: 'string', enum: D.UNITS, description: 'Musí být jednotka suroviny.' },
                   },
                 },
               },

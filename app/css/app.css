@@ -233,3 +233,28 @@ nav.tabs a.on { color: var(--green); font-weight: 700; }
 .proposal ul { margin: 6px 0 10px; padding-left: 18px; font-size: 14.5px; }
 .proposal li { margin: 2px 0; }
 .proposal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Nákupní seznam – smazání přejetím doleva */
+.swipe { position: relative; overflow: hidden; border-bottom: 1px solid #f0f0ec; background: var(--red-soft); }
+.swipe:last-child { border-bottom: 0; }
+.swipe .shop-item { border-bottom: 0; background: #fff; position: relative; touch-action: pan-y; }
+.swipe-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 18px; color: var(--red); font-weight: 700; font-size: 14.5px; transition: background .15s, color .15s; }
+.swipe.swiping .shop-item { background: #fff7f6; }
+.swipe.armed .swipe-bg { background: var(--red); color: #fff; }
+.swipe.armed .shop-item { background: var(--red-soft); }
+
+/* Množství s pevnou jednotkou suroviny */
+.qty-unit { display: flex; align-items: center; gap: 10px; }
+.qty-unit .input { flex: 1; }
+.qty-unit span { color: var(--muted); font-weight: 650; min-width: 48px; }
+.ing-row.bad .qty-pill { background: var(--red-soft); color: var(--red); }
+.ing-row .nm small { display: block; color: var(--red); font-size: 12.5px; font-weight: 500; }
+.warn-text { color: var(--amber); font-weight: 650; }
+.chip.warn { border-color: #f0d9ae; color: var(--amber); }
+.chip.warn.on { background: var(--amber); border-color: var(--amber); color: #fff; }
+
+/* Výběr do slotu: celá výška, při hledání jsou výsledky hned pod polem (bez posouvání nad klávesnicí) */
+.sheet.full { height: calc(100vh - env(safe-area-inset-top, 0px) - 12px); height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px); max-height: none; }
+.picker.searching .pick-lead, .picker.searching #pick-chosen, .picker.searching .pick-new-top { display: none; }
+.picker.searching h2 { font-size: 18px; margin-bottom: 10px; }
+#pick-list .pick-new { margin-top: 10px; }

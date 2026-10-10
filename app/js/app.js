@@ -105,10 +105,10 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.remove(), 2600);
 }
 const overlays = [];
-function openOverlay(renderFn, { center = false, onClose } = {}) {
+function openOverlay(renderFn, { center = false, full = false, onClose } = {}) {
   const scrim = document.createElement('div');
   scrim.className = 'scrim' + (center ? ' center' : '');
-  const o = { scrim, renderFn, center, onClose };
+  const o = { scrim, renderFn, center, full, onClose };
   scrim.addEventListener('click', e => { if (e.target === scrim) closeOverlay(o); });
   overlays.push(o);
   document.body.appendChild(scrim);
@@ -117,7 +117,7 @@ function openOverlay(renderFn, { center = false, onClose } = {}) {
 }
 function renderOverlay(o) {
   const html = o.renderFn();
-  o.scrim.innerHTML = o.center ? `<div class="dialog" role="dialog">${html}</div>` : `<div class="sheet" role="dialog"><div class="grab"></div>${html}</div>`;
+  o.scrim.innerHTML = o.center ? `<div class="dialog" role="dialog">${html}</div>` : `<div class="sheet${o.full ? ' full' : ''}" role="dialog"><div class="grab"></div>${html}</div>`;
 }
 function rerenderTop() { const o = overlays[overlays.length - 1]; if (o) renderOverlay(o); }
 function closeOverlay(o = overlays[overlays.length - 1]) {
@@ -317,12 +317,12 @@ let pick = null;
 function openPicker(planId, key, replaceIndex = null) {
   const meal = key.split('-')[1];
   pick = { planId, key, tab: 'library', query: '', filter: meal, replaceIndex };
-  openOverlay(pickerHtml, { onClose: () => { pick = null; } });
+  openOverlay(pickerHtml, { full: true, onClose: () => { pick = null; } });
 }
 function pickerHtml() {
-  return `
+  return `<div class="picker ${pick.query.trim() ? 'searching' : ''}">
     <h2>${esc(slotTitle(pick.planId, pick.key))}</h2>
-    <p class="lead">${pick.replaceIndex != null ? 'Vyber, čím nahradit stávající položku' : 'Vyber pokrmy nebo samostatné suroviny. Opětovným klepnutím položku odebereš.'}</p>
+    <p class="lead pick-lead">${pick.replaceIndex != null ? 'Vyber, čím nahradit stávající položku' : 'Vyber pokrmy nebo samostatné suroviny. Opětovným klepnutím položku odebereš.'}</p>
     ${pick.replaceIndex == null ? `<div id="pick-chosen">${pickChosenHtml()}</div>` : ''}
     <div class="seg">
       <button class="${pick.tab === 'library' ? 'on' : ''}" data-a="pickTab" data-v="library">Knihovna</button>
@@ -335,9 +335,10 @@ function pickerHtml() {
         ? `<button class="chip on chip-x small" data-a="pickClearFilter">${D.TAG_LABEL[pick.filter]} ✕</button><span class="chips-note">předfiltrováno podle slotu</span>`
         : `<button class="chip small" data-a="pickRestoreFilter">Jen ${D.TAG_LABEL[pick.key.split('-')[1]]}</button><span class="chips-note">zobrazeno vše</span>`}
     </div>`}
-    ${pick.tab === 'library' ? '<button class="btn btn-outline btn-block pick-new" data-a="pickNewDish">+ Vytvořit nový pokrm</button>' : ''}
+    ${pick.tab === 'library' ? '<button class="btn btn-outline btn-block pick-new pick-new-top" data-a="pickNewDish">+ Vytvořit nový pokrm</button>' : ''}
     <div id="pick-list">${pickerListHtml()}</div>
-    ${pick.replaceIndex == null ? '<div class="pick-done"><button class="btn btn-primary btn-block" data-a="closeAll">Hotovo</button></div>' : ''}`;
+    ${pick.replaceIndex == null ? '<div class="pick-done"><button class="btn btn-primary btn-block" data-a="closeAll">Hotovo</button></div>' : ''}
+  </div>`;
 }
 function pickChosenHtml() {
   const items = D.slotItems(D.getPlan(state, pick.planId), pick.key);
@@ -355,10 +356,8 @@ function openSlotQtySheet(planId, key, index) {
   const o = openOverlay(() => `
     <h2>Množství – ${esc(ing.name)}</h2>
     <p class="lead">Nepovinné. Propíše se na nákupní seznam.</p>
-    <div class="two-col field">
-      <div><label class="field-label" for="sqv">Množství</label><input id="sqv" class="input" inputmode="decimal" value="${e.qty != null ? num(e.qty) : ''}" placeholder="např. 2"></div>
-      <div><label class="field-label" for="squ">Jednotka</label><select id="squ" class="input">${unitOptions(e.unit || ing.unit)}</select></div>
-    </div>
+    ${e.qty != null && e.unit && e.unit !== ing.unit ? `<div class="note amber">Bylo zadáno <b>${num(e.qty)} ${esc(e.unit)}</b>. Surovina se vede v jednotce „${esc(ing.unit)}“ – zadejte přepočtené množství.</div>` : ''}
+    ${qtyFieldsHtml('sqv', e.unit && e.unit !== ing.unit ? '' : e.qty, ing.unit, 'např. 2')}
     <div style="display:grid;gap:6px">
       <button class="btn btn-primary btn-block" data-a="slotQtySave">Uložit</button>
       <button class="btn btn-ghost btn-block" data-a="slotQtyClear">Bez množství</button>
@@ -396,12 +395,14 @@ function pickerListHtml() {
   const plan = D.getPlan(state, pick.planId);
   if (pick.tab === 'library') {
     const items = state.dishes.filter(d => !d.deleted && (!pick.filter || d.tags.includes(pick.filter)) && (!q || D.normalize(d.name).includes(q))).sort(D.byName);
-    if (!items.length) return `<div class="list-empty">Žádný pokrm neodpovídá.</div>`;
+    // při hledání je „nový pokrm“ až pod výsledky, aby výsledky byly hned pod polem hledání
+    const newBtn = q ? '<button class="btn btn-outline btn-block pick-new" data-a="pickNewDish">+ Vytvořit nový pokrm</button>' : '';
+    if (!items.length) return `<div class="list-empty">Žádný pokrm neodpovídá.</div>${newBtn}`;
     return items.map(d => {
       const last = D.lastUsed(state, d.id, plan.id);
       const on = inSlot('dish', d.id);
       return `<button class="row ${on ? 'picked' : ''}" data-a="pickDish" data-id="${d.id}"><div class="main"><div class="title">${esc(d.name)}</div><div class="sub">${tagsText(d.tags)}</div><div class="meta">${surovin(d.items.length)}${last ? ` · naposledy ${D.fmtWeek(last)}` : ''}</div></div>${on ? `<span class="cb on">${I.check}</span>` : I.chev}</button>`;
-    }).join('');
+    }).join('') + newBtn;
   }
   if (pick.tab === 'ing') {
     const items = D.searchIngredients(state, pick.query).slice(0, 60);
@@ -411,7 +412,7 @@ function pickerListHtml() {
       const on = inSlot('ingredient', i.id);
       return `<button class="row ${on ? 'picked' : ''}" data-a="pickIng" data-id="${i.id}"><div class="main"><div class="title">${hint ? `Nemyslíš <b>${esc(i.name)}</b>?` : esc(i.name)}</div><div class="meta">${esc(i.category)} · ${esc(i.unit)}</div></div>${on ? `<span class="cb on">${I.check}</span>` : I.chev}</button>`;
     }).join('');
-    if (pick.query.trim() && !exact) html = `<button class="btn btn-outline btn-block pick-new" data-a="pickNewIng">+ Vytvořit novou surovinu „${esc(pick.query.trim())}“</button>` + html;
+    if (pick.query.trim() && !exact) html += `<button class="btn btn-outline btn-block pick-new" data-a="pickNewIng">+ Vytvořit novou surovinu „${esc(pick.query.trim())}“</button>`;
     return html || '<div class="list-empty">Databáze surovin je prázdná. Napište název a vytvořte novou.</div>';
   }
   const items = state.frozen.filter(f => !f.deleted && (!pick.filter || f.tags.includes(pick.filter)) && (!q || D.normalize(f.name).includes(q))).sort(D.byName);
@@ -424,6 +425,17 @@ function pickerListHtml() {
 }
 
 // 8 · Upozornění „Nákup již proběhl“
+// Smazané (mám doma) položky, které jídelníček zase potřebuje: obnovit, nebo přidat jen nové?
+async function askRestoreRemoved(planId) {
+  const removed = D.removedForPlan(state, planId);
+  if (!removed.length) return false;
+  const names = removed.map(i => D.getIngredient(state, i.ingredientId)?.name).filter(Boolean);
+  return confirmDialog({
+    title: 'Obnovit smazané položky?',
+    text: `Smazané položky, které jídelníček potřebuje: ${names.join(', ')}. Ano – vrátí se na seznam. Ne – přidají se jen nové položky.`,
+    ok: 'Ano, obnovit', cancel: 'Ne',
+  });
+}
 function openPurchaseDoneDialog(planId, kind) {
   openOverlay(() => `
     <span class="badge warn">${kind === 'update' ? 'Jídelníček se změnil' : 'Nový jídelníček'}</span>
@@ -510,6 +522,7 @@ function libraryItems() {
     if (f.fruit && !d.contains?.fruit) return false;
     if (f.veg && !d.contains?.veg) return false;
     if (f.tm && !d.thermomix) return false;
+    if (f.fix && !D.dishNeedsFix(state, d)) return false;
     return !q || D.normalize(d.name).includes(q);
   }).sort(D.byName);
 }
@@ -522,16 +535,18 @@ function libraryListHtml() {
   return items.map(d => `
     <a class="row ${d.deleted ? 'dim' : ''}" href="#/dish/${d.id}" style="text-decoration:none;color:inherit">
       <div class="main"><div class="title">${esc(d.name)}</div><div class="sub">${tagsText(d.tags)}</div>
-      <div class="meta">${surovin(d.items.length)}${d.thermomix ? ' · Thermomix' : ''}${d.deleted ? ' · smazáno' : ''}</div></div>${I.chev}</a>`).join('');
+      <div class="meta">${surovin(d.items.length)}${d.thermomix ? ' · Thermomix' : ''}${d.deleted ? ' · smazáno' : ''}${D.dishNeedsFix(state, d) ? ' · <span class="warn-text">k opravě jednotek</span>' : ''}</div></div>${I.chev}</a>`).join('');
 }
 function viewLibrary() {
   const tagChip = (k, l) => `<button class="chip ${ui.libTag === k ? 'on' : ''}" data-a="libTag" data-v="${k}">${l}</button>`;
-  const flag = (k, l) => `<button class="chip small ${ui.libFlags[k] ? 'on' : ''}" data-a="libFlag" data-v="${k}">${l}</button>`;
+  const flag = (k, l) => `<button class="chip small ${ui.libFlags[k] ? 'on' : ''} ${k === 'fix' ? 'warn' : ''}" data-a="libFlag" data-v="${k}">${l}</button>`;
+  const fixCount = state.dishes.filter(d => !d.deleted && D.dishNeedsFix(state, d)).length;
+  if (!fixCount) ui.libFlags.fix = false;
   return `
   <div class="top"><h1>Knihovna</h1><div class="actions"><a class="btn btn-primary" href="#/dish/new">+ Pokrm</a></div></div>
   <label class="search">${I.search}<input data-in="libQuery" data-keep="libQuery" placeholder="Hledat pokrm…" value="${esc(ui.libQuery)}" autocomplete="off"></label>
   <div class="chips">${tagChip('all', 'Vše')}${D.TAGS.map(t => tagChip(t.key, t.label)).join('')}</div>
-  <div class="chips">${flag('sladke', 'Sladké')}${flag('slane', 'Slané')}${flag('fruit', 'Ovoce')}${flag('veg', 'Zelenina')}${flag('tm', 'Thermomix')}</div>
+  <div class="chips">${flag('sladke', 'Sladké')}${flag('slane', 'Slané')}${flag('fruit', 'Ovoce')}${flag('veg', 'Zelenina')}${flag('tm', 'Thermomix')}${fixCount ? flag('fix', `K opravě (${fixCount})`) : ''}</div>
   <div class="barrow" style="margin-bottom:10px">
     <a class="menu-link" href="#/ingredients">Suroviny (${state.ingredients.length}) ›</a>
     <button class="menu-link" data-a="toggleDeleted">${ui.showDeleted ? 'Zpět na pokrmy' : 'Smazané pokrmy'}</button>
@@ -564,7 +579,8 @@ function viewDish(id) {
   const rows = d.items.map((it, i) => {
     const ing = D.getIngredient(state, it.ingredientId);
     const q = it.qty != null && it.qty !== '' ? `${num(it.qty)} ${esc(it.unit || ing?.unit || '')}` : '—';
-    return `<div class="ing-row"><div class="nm">${esc(ing ? ing.name : '?')}</div>
+    const bad = D.itemUnitMismatch(state, it);
+    return `<div class="ing-row ${bad ? 'bad' : ''}"><div class="nm">${esc(ing ? ing.name : '?')}${bad ? `<small>surovina je v jednotce „${esc(ing.unit)}“ – přepočítejte</small>` : ''}</div>
       <button class="qty-pill" data-a="editQty" data-i="${i}">${q}</button>
       <button class="x-btn" data-a="removeIng" data-i="${i}" aria-label="Odebrat">${I.x}</button></div>`;
   }).join('');
@@ -574,6 +590,7 @@ function viewDish(id) {
   <div class="top" style="margin-top:4px"><h1>${isNew ? 'Nový pokrm' : 'Upravit pokrm'}</h1></div>
   ${isNew && ui.slotReturn ? `<div class="note green">Po uložení se pokrm přidá do: <b>${esc(slotTitle(ui.slotReturn.planId, ui.slotReturn.key))}</b></div>` : ''}
   ${d.deleted ? `<div class="note amber">Pokrm je smazaný z knihovny. V naplánovaných dnech zůstává podle poslední verze receptu.</div>` : ''}
+  ${D.dishNeedsFix(state, d) ? `<div class="note amber">Některé suroviny mají v receptu jinou jednotku než v seznamu surovin. Na nákupním seznamu by byly zvlášť – klepněte na množství a přepočítejte.</div>` : ''}
   ${ui.draftErrors.length ? `<div class="err">${ui.draftErrors.map(esc).join('<br>')}</div>` : ''}
   <div class="field"><label for="dn">Název *</label><input id="dn" class="input" data-in="draftName" value="${esc(d.name)}" placeholder="např. Ovesná kaše s ovocem"></div>
   <div class="field"><span class="field-label">Štítky * (lze vybrat více)</span><div class="chips" style="margin:0">${D.TAGS.map(tagChip).join('')}</div></div>
@@ -626,20 +643,21 @@ function acListHtml(ctx = 'dish') {
 function openQtySheet(i) {
   const it = ui.draft.items[i];
   const ing = D.getIngredient(state, it.ingredientId);
-  const unit = it.unit || ing.unit;
+  const bad = D.itemUnitMismatch(state, it);
   openOverlay(() => `
     <h2>Množství – ${esc(ing.name)}</h2>
     <p class="lead">Nepovinné. Bez množství se na seznamu zobrazí jako „+ další“.</p>
-    <div class="two-col field">
-      <div><label class="field-label" for="qv">Množství</label><input id="qv" class="input" inputmode="decimal" value="${it.qty != null ? num(it.qty) : ''}" placeholder="např. 200"></div>
-      <div><label class="field-label" for="qu">Jednotka</label><select id="qu" class="input">${unitOptions(unit)}</select></div>
-    </div>
+    ${bad ? `<div class="note amber">V receptu bylo <b>${num(it.qty)} ${esc(it.unit)}</b>. Surovina se vede v jednotce „${esc(ing.unit)}“ – zadejte přepočtené množství.</div>` : ''}
+    ${qtyFieldsHtml('qv', bad ? '' : it.qty, ing.unit, 'např. 200')}
     <div class="btns" style="display:grid;gap:6px">
       <button class="btn btn-primary btn-block" data-a="qtySave" data-i="${i}">Uložit</button>
       <button class="btn btn-ghost btn-block" data-a="qtyClear" data-i="${i}">Bez množství</button>
     </div>`);
   setTimeout(() => $('#qv')?.focus(), 50);
 }
+// Množství + pevná jednotka suroviny (jednotka se mění jen u suroviny ve Správě surovin)
+const qtyFieldsHtml = (id, qty, unit, ph) => `<div class="field"><label class="field-label" for="${id}">Množství (${esc(unit)})</label>
+  <div class="qty-unit"><input id="${id}" class="input" inputmode="decimal" value="${qty != null && qty !== '' ? num(qty) : ''}" placeholder="${esc(ph)}"><span>${esc(unit)}</span></div></div>`;
 const unitOptions = (sel, list = D.UNITS) => [...new Set([...list, sel].filter(Boolean))].map(u => `<option ${u === sel ? 'selected' : ''}>${esc(u)}</option>`).join('');
 const catOptions = sel => D.CATEGORIES.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
 
@@ -730,11 +748,55 @@ function shopItemHtml(it, { readonly = false } = {}) {
   const src = it.origin === 'manual' ? 'Ručně přidáno' : (D.itemDishes(it).join(', ') || 'z jídelníčku');
   const done = it.state === 'bought';
   const cb = `<span class="cb ${done ? 'on' : ''}">${done ? I.check : ''}</span>`;
-  return `<div class="shop-item ${done ? 'done' : ''}">
+  const row = `<div class="shop-item ${done ? 'done' : ''}">
     ${readonly ? cb : `<button data-a="toggleItem" data-id="${it.id}" aria-label="Nakoupeno">${cb}</button>`}
     <button class="main" ${readonly ? '' : `data-a="itemMenu" data-id="${it.id}"`}><div class="nm">${esc(ing ? ing.name : '?')}</div><div class="src">${it.carried ? 'Převedeno · ' : ''}${esc(src)}</div></button>
     <div class="q">${fmtQty(q.qty, q.missing, it.unit)}</div></div>`;
+  // přejetím doleva se položka smaže (= vyřadí, mám doma)
+  return readonly ? row : `<div class="swipe" data-swipe="${it.id}"><div class="swipe-bg">Smazat · mám doma</div>${row}</div>`;
 }
+
+// Přejetí položky nákupního seznamu doleva: řádek zčervená, po přejetí přes polovinu se smaže.
+let swipe = null;
+document.addEventListener('pointerdown', e => {
+  const wrap = e.target.closest('[data-swipe]');
+  if (!wrap || e.button > 0) return;
+  swipe = { wrap, row: wrap.querySelector('.shop-item'), x: e.clientX, y: e.clientY, dx: 0, active: false, id: e.pointerId };
+});
+document.addEventListener('pointermove', e => {
+  if (!swipe || e.pointerId !== swipe.id) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+  if (!swipe.active) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { swipe = null; return; } // svislé posouvání stránky
+    if (dx > -10 || Math.abs(dx) < Math.abs(dy)) return;
+    swipe.active = true;
+    swipe.wrap.classList.add('swiping');
+    try { swipe.wrap.setPointerCapture(e.pointerId); } catch { /* nic */ }
+  }
+  swipe.dx = Math.min(0, dx);
+  swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+  swipe.wrap.classList.toggle('armed', -swipe.dx > swipe.wrap.offsetWidth * 0.45);
+});
+function endSwipe(e) {
+  if (!swipe || e.pointerId !== swipe.id) return;
+  const s = swipe; swipe = null;
+  if (!s.active) return;
+  // kliknutí po tažení se nemá provést
+  const block = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', block, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', block, { capture: true }), 50);
+  const w = s.wrap.offsetWidth;
+  s.row.style.transition = 'transform .18s ease';
+  if (-s.dx > w * 0.45 && e.type === 'pointerup') {
+    s.row.style.transform = `translateX(${-w}px)`;
+    setTimeout(() => { commit(st => D.setItemState(st, s.wrap.dataset.swipe, 'removed')); toast('Smazáno – mám doma'); }, 170);
+  } else {
+    s.row.style.transform = '';
+    s.wrap.classList.remove('swiping', 'armed');
+  }
+}
+document.addEventListener('pointerup', endSwipe);
+document.addEventListener('pointercancel', endSwipe);
 function groupedItemsHtml(items, opts) {
   const groups = {};
   for (const it of items) {
@@ -794,10 +856,7 @@ function shopAddHtml() {
       <div id="shop-ac">${acListHtml('shop')}</div>`;
   }
   return `<h2>Přidat: ${esc(ing.name)}</h2><p class="lead">${esc(ing.category)}</p>
-    <div class="two-col field">
-      <div><label class="field-label" for="sq">Množství (nepovinné)</label><input id="sq" class="input" inputmode="decimal"></div>
-      <div><label class="field-label" for="su">Jednotka</label><select id="su" class="input">${unitOptions(ing.unit)}</select></div>
-    </div>
+    ${qtyFieldsHtml('sq', null, ing.unit, 'nepovinné')}
     <button class="btn btn-primary btn-block" data-a="shopAddSave">Přidat na seznam</button>
     <button class="btn btn-ghost btn-block" data-a="shopAddBack">Vybrat jinou surovinu</button>`;
 }
@@ -1002,20 +1061,25 @@ const A = {
   slotQtySave: () => {
     const o = topOverlay(); const raw = $('#sqv').value; const q = parseNum(raw);
     if (raw.trim() && q == null) { toast('Zadejte kladné číslo.'); return; }
-    commit(s => D.setSlotEntryQty(s, o.planId, o.key, o.index, q, $('#squ').value));
+    commit(s => D.setSlotEntryQty(s, o.planId, o.key, o.index, q));
     closeOverlay(o); refreshPicker();
   },
   slotQtyClear: () => { const o = topOverlay(); commit(s => D.setSlotEntryQty(s, o.planId, o.key, o.index, null)); closeOverlay(o); refreshPicker(); },
   pickFrozen: el => pickToggle('frozen', el.dataset.id),
-  syncList: el => {
-    const r = commit(s => D.syncPlanToList(s, el.dataset.plan));
-    if (r && r.needsDialog) openPurchaseDoneDialog(el.dataset.plan, r.kind);
+  syncList: async el => {
+    const pid = el.dataset.plan;
+    const st = D.planListStatus(state, D.getPlan(state, pid));
+    if (D.isPurchaseDone(D.currentList(state)) && (st === 'add' || st === 'update')) { openPurchaseDoneDialog(pid, st); return; }
+    const restore = await askRestoreRemoved(pid);
+    const r = commit(s => D.syncPlanToList(s, pid, { restore }));
+    if (r && r.needsDialog) openPurchaseDoneDialog(pid, r.kind);
     else if (r) toast('Nákupní seznam aktualizován');
   },
-  syncForce: el => {
-    const v = el.dataset.v;
+  syncForce: async el => {
+    const v = el.dataset.v, pid = el.dataset.plan;
     closeOverlay();
-    commit(s => D.syncPlanToList(s, el.dataset.plan, { force: v }));
+    const restore = v === 'haveAll' ? false : await askRestoreRemoved(pid);
+    commit(s => D.syncPlanToList(s, pid, { force: v, restore }));
     toast(v === 'newList' ? 'Vytvořen nový nákupní seznam se změnami' : v === 'haveAll' ? 'Beru na vědomí, seznam se nemění' : 'Přidáno na nákupní seznam');
   },
   archiveWeek: async () => {
@@ -1038,6 +1102,8 @@ const A = {
   acceptProposal: el => {
     const r = commit(s => P.acceptProposal(s, el.dataset.id));
     if (r) toast(r.messages.join(' '));
+    // nový pokrm rovnou otevřít v editaci ke kontrole
+    if (r && r.dishId) { closeAllOverlays(); go(`#/dish/${r.dishId}`); return; }
     if (P.pendingProposals(state).length) rerenderTop(); else closeOverlay();
   },
   rejectProposal: el => {
@@ -1078,7 +1144,8 @@ const A = {
     const raw = $('#qv').value;
     const q = parseNum(raw);
     if (raw.trim() && q == null) { toast('Zadejte kladné číslo.'); return; }
-    it.qty = q; it.unit = q == null ? null : $('#qu').value;
+    const ing = D.getIngredient(state, it.ingredientId);
+    it.qty = q; it.unit = q == null ? null : ing.unit;
     ui.draftDirty = true; closeOverlay(); render();
   },
   qtyClear: el => { const it = ui.draft.items[+el.dataset.i]; it.qty = null; it.unit = null; ui.draftDirty = true; closeOverlay(); render(); },
@@ -1197,7 +1264,7 @@ const A = {
     const raw = $('#sq').value; const q = parseNum(raw);
     if (raw.trim() && q == null) { toast('Zadejte kladné číslo.'); return; }
     const ingId = ui.shopAc.ingId;
-    const r = commit(s => D.addManualItem(s, ingId, q, $('#su').value));
+    const r = commit(s => D.addManualItem(s, ingId, q));
     if (r) { closeOverlay(); toast('Přidáno na seznam'); }
   },
   allBought: () => { commit(s => D.markAllBought(s)); toast('Vše označeno jako nakoupené'); },
@@ -1242,7 +1309,11 @@ const IN = {
   libQuery: v => { ui.libQuery = v; $('#lib-list').innerHTML = libraryListHtml(); },
   frozenQuery: v => { ui.frozenQuery = v; $('#frozen-list').innerHTML = frozenListHtml(); },
   ingQuery: v => { ui.ingQuery = v; $('#ing-list').innerHTML = ingredientsListHtml(); },
-  pickQuery: v => { pick.query = v; $('#pick-list').innerHTML = pickerListHtml(); },
+  pickQuery: (v, el) => {
+    pick.query = v;
+    $('#pick-list').innerHTML = pickerListHtml();
+    el.closest('.picker')?.classList.toggle('searching', !!v.trim());
+  },
   draftName: v => { ui.draft.name = v; ui.draftDirty = true; },
   draftField: (v, el) => { ui.draft[el.dataset.f] = v; ui.draftDirty = true; },
   draftRestr: v => { ui.draft.restrictions = v.split(',').map(x => x.trim()).filter(Boolean); ui.draftDirty = true; },

@@ -1,5 +1,5 @@
 // Service worker: aplikace funguje i offline. Při změně souborů zvyšte VERSION.
-const VERSION = 'jidelnicek-v9';
+const VERSION = 'jidelnicek-v10';
 const ASSETS = [
   './', './index.html', './css/app.css', './js/app.js', './js/domain.js', './js/db.js', './js/pdf.js', './js/sync.js', './js/merge.js', './js/proposals.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',

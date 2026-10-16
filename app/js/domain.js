@@ -541,6 +541,19 @@ export function reconcile(state, list, plan, mode = 'normal', { restore = false 
   list.planSigs[P] = planSig(state, plan);
 }
 
+// „Přidat vše na nákupní seznam“: jídelníček se na seznam přidá celý znovu – nakoupené ani smazané
+// (mám doma) položky ho nekryjí. Pro případ, kdy byl seznam smazán/archivován.
+export function addPlanFully(state, planId) {
+  const plan = getPlan(state, planId);
+  const list = currentList(state);
+  const P = plan.id;
+  delete list.coverage[P];
+  delete list.planSigs[P];
+  for (const it of list.items) if (it.origin !== 'manual' && it.state !== 'todo' && it.contrib) delete it.contrib[P];
+  list.markedDone = false;
+  reconcile(state, list, plan, 'normal', { restore: true });
+}
+
 // Výsledek: {ok:true} nebo {needsDialog:true, kind:'add'|'update'}
 export function syncPlanToList(state, planId, { force = null, restore = false } = {}) {
   const plan = getPlan(state, planId);

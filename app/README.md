@@ -121,6 +121,8 @@ Další drobnosti:
 
 - Ruční položky seznamu aktualizace nikdy nemaže. Stejná ruční surovina se sečte do jednoho řádku, ale od položek z jídelníčku se drží zvlášť.
 - Položku nákupního seznamu jde smazat **přejetím doleva** (řádek zčervená, po přejetí přes polovinu se smaže). Smazání = „Vyřazeno – mám doma“: položka jde vrátit přes *Zobrazit*.
+- Menu `⋯` → **Přidat vše na nákupní seznam**: přidá všechny suroviny z právě zobrazeného týdne znovu, i když už byly nakoupené, smazané nebo je seznam archivovaný (např. po smazání seznamu). Položky, které na seznamu už jsou, se nezdvojí.
+- Spodní okna jde zavřít **přetažením dolů** (když je obsah okna odscrollovaný nahoru).
 - Když aktualizace jídelníčku potřebuje smazanou položku, aplikace se zeptá **„Obnovit smazané položky?“**: *Ano* = smazané se vrátí na seznam (nakoupené zůstanou nakoupené), *Ne* = přidají se jen nové položky.
 - Kontrola duplicit: normalizace (malá písmena, bez diakritiky, mezery) + Levenshteinova vzdálenost (1–3 podle délky) + shodný začátek slova. Na obrazovce Suroviny jde dvojici označit „Nejsou duplicity“.
 - **Samostatné suroviny v jídelníčku:** ve výběru do slotu je záložka *Suroviny* (vyhledávání, kontrola duplicit, vytvoření nové). Množství je nepovinné a jde upravit klepnutím na položku ve dni. Na nákupní seznam se propisuje s poznámkou „samostatně v jídelníčku“ a sčítá se se stejnou surovinou z pokrmů.

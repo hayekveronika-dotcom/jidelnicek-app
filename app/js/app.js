@@ -129,6 +129,47 @@ function closeOverlay(o = overlays[overlays.length - 1]) {
 }
 function closeAllOverlays() { while (overlays.length) closeOverlay(); }
 
+// Spodní okno (sheet) jde zavřít přetažením dolů, když je obsah odscrollovaný nahoru.
+let sheetDrag = null;
+document.addEventListener('touchstart', e => {
+  const sheet = e.target.closest('.sheet');
+  if (!sheet || e.touches.length > 1) { sheetDrag = null; return; }
+  const t = e.touches[0];
+  sheetDrag = { sheet, x: t.clientX, y: t.clientY, dy: 0, active: false, t0: Date.now() };
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  const d = sheetDrag;
+  if (!d) return;
+  const t = e.touches[0];
+  const dx = t.clientX - d.x, dy = t.clientY - d.y;
+  if (!d.active) {
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    // jen tah dolů, když okno není odscrollované (jinak normální posouvání obsahu)
+    if (dy <= 0 || Math.abs(dx) > dy || d.sheet.scrollTop > 0) { sheetDrag = null; return; }
+    d.active = true;
+    d.sheet.style.transition = 'none';
+    document.activeElement?.blur?.();
+  }
+  e.preventDefault();
+  d.dy = Math.max(0, dy);
+  d.sheet.style.transform = `translateY(${d.dy}px)`;
+}, { passive: false });
+function endSheetDrag() {
+  const d = sheetDrag; sheetDrag = null;
+  if (!d || !d.active) return;
+  const fast = d.dy > 40 && d.dy / Math.max(1, Date.now() - d.t0) > 0.6;
+  const o = overlays.find(x => x.scrim.contains(d.sheet));
+  d.sheet.style.transition = 'transform .2s ease';
+  if (o && (d.dy > Math.min(140, d.sheet.offsetHeight * 0.25) || fast)) {
+    d.sheet.style.transform = 'translateY(100%)';
+    setTimeout(() => closeOverlay(o), 190);
+  } else {
+    d.sheet.style.transform = '';
+  }
+}
+document.addEventListener('touchend', endSheetDrag);
+document.addEventListener('touchcancel', endSheetDrag);
+
 function confirmDialog({ title, text = '', ok = 'Potvrdit', cancel = 'Zrušit', danger = false }) {
   return new Promise(resolve => {
     let done = false;
@@ -499,6 +540,7 @@ function openSettings() {
     <div class="action-list">
       <button data-a="goto" data-v="#/archive">Archiv jídelníčků a seznamů</button>
       <button data-a="goto" data-v="#/ingredients">Správa surovin</button>
+      <button data-a="addAllToList">Přidat vše na nákupní seznam</button>
       <button data-a="archiveWeek">Uzavřít aktuální týden ručně</button>
       <button data-a="syncNow">Synchronizovat teď</button>
       <button data-a="exportData">Exportovat data (záloha JSON)</button>
@@ -1081,6 +1123,13 @@ const A = {
     const restore = v === 'haveAll' ? false : await askRestoreRemoved(pid);
     commit(s => D.syncPlanToList(s, pid, { force: v, restore }));
     toast(v === 'newList' ? 'Vytvořen nový nákupní seznam se změnami' : v === 'haveAll' ? 'Beru na vědomí, seznam se nemění' : 'Přidáno na nákupní seznam');
+  },
+  addAllToList: async () => {
+    closeAllOverlays();
+    const plan = planByTab();
+    if (!D.allEntries(plan).some(e => e.type === 'dish' || e.type === 'ingredient')) { toast('Jídelníček je prázdný.'); return; }
+    const ok = await confirmDialog({ title: 'Přidat vše na nákupní seznam?', text: `Na seznam se přidají všechny suroviny z jídelníčku ${D.fmtWeek(plan.weekStart)} – i ty, které už byly nakoupené nebo smazané.`, ok: 'Přidat vše' });
+    if (ok) { commit(s => D.addPlanFully(s, plan.id)); toast('Přidáno na nákupní seznam'); }
   },
   archiveWeek: async () => {
     closeAllOverlays();

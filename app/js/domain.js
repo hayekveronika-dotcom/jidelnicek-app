@@ -568,11 +568,31 @@ export function syncPlanToList(state, planId, { force = null, restore = false } 
   return { ok: true };
 }
 
-export function itemQty(it) {
-  if (it.origin === 'manual') return { qty: it.qty || 0, missing: it.qty ? 0 : 1 };
+function planQty(it) {
   let qty = 0, missing = 0;
   for (const c of Object.values(it.contrib || {})) { qty += c.qty; missing += c.missing; }
-  return { qty: r3(qty), missing };
+  return { qty, missing };
+}
+// Položka z jídelníčku může mít ruční úpravu: adjust = rozdíl proti jídelníčku (platí i po dalších
+// změnách jídelníčku), missingSet = kolik pokrmů „bez množství“ bylo při úpravě už započteno.
+export function itemQty(it) {
+  if (it.origin === 'manual') return { qty: it.qty || 0, missing: it.qty ? 0 : 1 };
+  const b = planQty(it);
+  return { qty: r3(Math.max(0, b.qty + (it.adjust || 0))), missing: Math.max(0, b.missing - (it.missingSet || 0)) };
+}
+export const itemAdjusted = it => it.origin !== 'manual' && (!!it.adjust || !!it.missingSet);
+// Nastaví celkové množství položky nákupního seznamu (v jednotce suroviny). qty null u položky
+// z jídelníčku = zrušit ruční úpravu (vrátit podle jídelníčku).
+export function setItemQty(state, itemId, qty) {
+  const it = currentList(state).items.find(i => i.id === itemId);
+  if (!it) return;
+  if (it.origin === 'manual') { it.qty = qty; return; }
+  if (qty == null) { delete it.adjust; delete it.missingSet; return; }
+  const b = planQty(it);
+  it.adjust = r3(qty - b.qty);
+  it.missingSet = b.missing;
+  if (!it.adjust) delete it.adjust;
+  if (!it.missingSet) delete it.missingSet;
 }
 export function itemDishes(it) {
   const s = new Set();

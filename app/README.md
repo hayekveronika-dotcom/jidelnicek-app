@@ -121,6 +121,7 @@ Další drobnosti:
 
 - Ruční položky seznamu aktualizace nikdy nemaže. Stejná ruční surovina se sečte do jednoho řádku, ale od položek z jídelníčku se drží zvlášť.
 - Položku nákupního seznamu jde smazat **přejetím doleva** (řádek zčervená, po přejetí přes polovinu se smaže). Smazání = „Vyřazeno – mám doma“: položka jde vrátit přes *Zobrazit*.
+- **Množství na nákupním seznamu** jde upravit u každé položky (klepnutí na položku → *Upravit množství*). U položky z jídelníčku si aplikace pamatuje rozdíl proti jídelníčku: z 6 ks cibule upravených na 4 ks bude po přidání jídla s dalšími 2 ks zase 6 ks. Položka má označení „upraveno“. *Vrátit podle jídelníčku* úpravu zruší.
 - Menu `⋯` → **Přidat vše na nákupní seznam**: přidá všechny suroviny z právě zobrazeného týdne znovu, i když už byly nakoupené, smazané nebo je seznam archivovaný (např. po smazání seznamu). Položky, které na seznamu už jsou, se nezdvojí.
 - Spodní okna jde zavřít **přetažením dolů** (když je obsah okna odscrollovaný nahoru).
 - Když aktualizace jídelníčku potřebuje smazanou položku, aplikace se zeptá **„Obnovit smazané položky?“**: *Ano* = smazané se vrátí na seznam (nakoupené zůstanou nakoupené), *Ne* = přidají se jen nové položky.

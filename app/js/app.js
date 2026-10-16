@@ -792,7 +792,7 @@ function shopItemHtml(it, { readonly = false } = {}) {
   const cb = `<span class="cb ${done ? 'on' : ''}">${done ? I.check : ''}</span>`;
   const row = `<div class="shop-item ${done ? 'done' : ''}">
     ${readonly ? cb : `<button data-a="toggleItem" data-id="${it.id}" aria-label="Nakoupeno">${cb}</button>`}
-    <button class="main" ${readonly ? '' : `data-a="itemMenu" data-id="${it.id}"`}><div class="nm">${esc(ing ? ing.name : '?')}</div><div class="src">${it.carried ? 'Převedeno · ' : ''}${esc(src)}</div></button>
+    <button class="main" ${readonly ? '' : `data-a="itemMenu" data-id="${it.id}"`}><div class="nm">${esc(ing ? ing.name : '?')}</div><div class="src">${it.carried ? 'Převedeno · ' : ''}${esc(src)}${D.itemAdjusted(it) ? ' · upraveno' : ''}</div></button>
     <div class="q">${fmtQty(q.qty, q.missing, it.unit)}</div></div>`;
   // přejetím doleva se položka smaže (= vyřadí, mám doma)
   return readonly ? row : `<div class="swipe" data-swipe="${it.id}"><div class="swipe-bg">Smazat · mám doma</div>${row}</div>`;
@@ -881,7 +881,7 @@ function openItemMenu(id) {
     <p class="lead">${fmtQty(q.qty, q.missing, it.unit)} · ${it.origin === 'manual' ? 'ručně přidáno' : esc(D.itemDishes(it).join(', '))}</p>
     <div class="action-list">
       <button data-a="toggleItem" data-id="${id}" data-close="1">${it.state === 'bought' ? 'Vrátit mezi nenakoupené' : 'Označit jako nakoupené'}</button>
-      ${it.origin === 'manual' ? `<button data-a="manualQty" data-id="${id}">Upravit množství</button>` : ''}
+      <button data-a="itemQty" data-id="${id}">Upravit množství</button>
       <button class="danger" data-a="removeItem" data-id="${id}">Vyřadit – mám doma</button>
     </div>`);
 }
@@ -1290,23 +1290,29 @@ const A = {
   removeItem: el => { commit(s => D.setItemState(s, el.dataset.id, 'removed')); closeOverlay(); toast('Vyřazeno – mám doma'); },
   restoreItem: el => commit(s => D.setItemState(s, el.dataset.id, 'todo')),
   toggleRemoved: () => { ui.showRemoved = !ui.showRemoved; render(); },
-  manualQty: el => {
+  itemQty: el => {
     closeOverlay();
     const it = D.currentList(state).items.find(i => i.id === el.dataset.id);
-    const o = openOverlay(() => `<h2>Upravit množství</h2>
-      <div class="two-col field"><div><label class="field-label" for="mq">Množství</label><input id="mq" class="input" inputmode="decimal" value="${it.qty != null ? num(it.qty) : ''}"></div>
-      <div><label class="field-label" for="mu">Jednotka</label><select id="mu" class="input">${unitOptions(it.unit)}</select></div></div>
-      <button class="btn btn-primary btn-block" data-a="manualQtySave">Uložit</button>`);
-    o.itemId = it.id;
+    const ing = D.getIngredient(state, it.ingredientId);
+    const q = D.itemQty(it);
+    const fromPlan = it.origin !== 'manual';
+    const o = openOverlay(() => `<h2>Upravit množství – ${esc(ing?.name)}</h2>
+      ${fromPlan ? `<p class="lead">Podle jídelníčku ${fmtQty(D.itemQty({ ...it, adjust: 0, missingSet: 0 }).qty, D.itemQty({ ...it, adjust: 0, missingSet: 0 }).missing, it.unit)}. Úprava platí i po dalších změnách jídelníčku – nové množství se k ní přičte.</p>` : ''}
+      ${qtyFieldsHtml('mq', q.qty || '', it.unit, fromPlan ? '' : 'nepovinné')}
+      <button class="btn btn-primary btn-block" data-a="itemQtySave">Uložit</button>
+      ${fromPlan && D.itemAdjusted(it) ? '<button class="btn btn-ghost btn-block" data-a="itemQtyReset">Vrátit podle jídelníčku</button>' : ''}`);
+    o.itemId = it.id; o.fromPlan = fromPlan;
+    setTimeout(() => $('#mq')?.focus(), 50);
   },
-  manualQtySave: () => {
+  itemQtySave: () => {
     const o = topOverlay();
-    commit(s => {
-      const it = D.currentList(s).items.find(i => i.id === o.itemId);
-      it.qty = parseNum($('#mq').value); it.unit = $('#mu').value; it.key = `${it.ingredientId}|${it.unit}`;
-    });
+    const raw = $('#mq').value; const q = parseNum(raw);
+    if (raw.trim() && q == null) { toast('Zadejte kladné číslo.'); return; }
+    if (o.fromPlan && q == null) { toast('Zadejte množství, nebo položku smažte (mám doma).'); return; }
+    commit(s => D.setItemQty(s, o.itemId, q));
     closeOverlay(o);
   },
+  itemQtyReset: () => { const o = topOverlay(); commit(s => D.setItemQty(s, o.itemId, null)); closeOverlay(o); toast('Množství podle jídelníčku'); },
   shopAdd: () => openShopAdd(),
   shopAddBack: () => { ui.shopAc.ingId = null; ui.shopAc.query = ''; rerenderTop(); },
   shopAddSave: () => {

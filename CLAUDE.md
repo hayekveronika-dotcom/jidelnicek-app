@@ -30,7 +30,7 @@ Zadání: `docs/zadani.md`, návrhy obrazovek: `docs/screens/` (10 obrazovek, mo
 - `plans[]` {id (nové týdny `w-YYYY-MM-DD`, kvůli souběžnému založení na 2 zařízeních), weekStart 'YYYY-MM-DD' (pondělí), status current|next|archive, slots{"<denIndex>-<jídlo>": [entry]}}
   - entry: `{type:'dish', refId}` | `{type:'frozen', refId, count}` | `{type:'ingredient', refId, qty, unit}`
   - Po–Pá: snídaně, svačina, večeře; So–Ne navíc oběd. Slot může mít víc položek.
-- `lists[]` nákupní seznamy {status current|archive, items[{key "ingId|unit", origin plan|manual, state todo|bought|removed, contrib{planId:{qty,missing,dishes}}, carried}], planSigs, coverage, markedDone}
+- `lists[]` nákupní seznamy {status current|archive, items[{key "ingId|unit", origin plan|manual, state todo|bought|removed, contrib{planId:{qty,missing,dishes}}, carried, adjust (ruční rozdíl množství proti jídelníčku, `setItemQty`), missingSet}], planSigs, coverage, markedDone}
 - `migrateState()` převádí starší data (schema 1: 1 entry na slot).
 
 ### Klíčová pravidla (viz `domain.js`)

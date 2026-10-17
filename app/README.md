@@ -64,6 +64,22 @@ SELECT rev, updated_at, updated_by FROM app_state_history ORDER BY rev DESC LIMI
 UPDATE app_state SET data = (SELECT data FROM app_state_history WHERE rev = 123), rev = rev + 1 WHERE id = 'main';
 ```
 
+## Další zařízení bez přihlášení (tajný odkaz)
+
+Cloudflare Access chrání jen data (`/api`), samotná aplikace se otevře bez přihlášení. Kdo není přihlášený ani připojený odkazem, dat se nedostane. V aplikaci uvidí lištu *Přihlásit*, která vede na přihlášení e-mailem.
+
+Zařízení bez přihlášení (např. manželův telefon) se připojí **tajným odkazem** se servisním tokenem Access. Klíč si zařízení zapamatuje a posílá ho se synchronizací. Kdo odkaz zná, má přístup k datům, dokud token v Cloudflare nesmažete.
+
+Nastavení (jednorázově, **až po nasazení této verze**):
+
+1. Zero Trust → *Access* → *Service credentials* → *Service Tokens* → *Create Service Token*: název např. `manzel`, *Duration* *Non-expiring*. Zkopírujte **Client ID** a **Client Secret** (secret se zobrazí jen jednou).
+2. Zero Trust → *Access* → *Applications* → `jidelnicek-app` → *Destinations*: u obou řádků (`jidelnicek-app.pages.dev` i `*.jidelnicek-app.pages.dev`) vyplňte *Path* `api` → *Save*.
+3. Ve stejné aplikaci → *Access policies* → *Create new policy*: *Action* **Service Auth**, *Include* → **Service Token** → `manzel` → *Save*. Pak *Save* aplikace.
+4. V aplikaci menu `⋯` → *Odkaz pro další zařízení* → vložte Client ID a Client Secret → *Vytvořit odkaz* → *Poslat odkaz*.
+5. Na druhém zařízení otevřete odkaz v Safari (zařízení se připojí) a pak *Sdílet → Přidat na plochu*. Pokud aplikace z plochy hlásí „Odkaz pro toto zařízení už neplatí“ nebo nesynchronizuje, v ní menu `⋯` → *Připojit toto zařízení odkazem* → vložte odkaz.
+
+Zrušení přístupu: smažte servisní token v Zero Trust. Odkaz přestane platit na všech zařízeních, která ho použila.
+
 ## Propojení s Claudem (konektor MCP)
 
 Claude v claude.ai čte knihovnu, zásoby a jídelníčky a posílá **návrhy** (nový pokrm, surovina, obsazení dnů). Návrhy se objeví na obrazovce Jídelníček jako „Návrhy od Clauda“. Přijatý nový pokrm se rovnou otevře v editaci ke kontrole. Po *Přijmout* se návrhy provedou stejně, jako kdyby se zadaly ručně (kontrola duplicit, mražené zásoby, jídla podle dne). *Zamítnout* je zahodí.

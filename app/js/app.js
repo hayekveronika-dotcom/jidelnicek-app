@@ -2,7 +2,7 @@ import * as D from './domain.js';
 import * as P from './proposals.js';
 import { loadState, saveState, requestPersistence } from './db.js';
 import { drawPlanCanvas, canvasToPdf } from './pdf.js';
-import { initSync, syncNow, markDirty, markReplace, getSyncInfo } from './sync.js';
+import { initSync, syncNow, markDirty, markReplace, getSyncInfo, setDeviceKey } from './sync.js';
 
 // ---------- Pomocné ----------
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -61,12 +61,14 @@ function replaceState(next) {
 // ---------- Stav synchronizace ----------
 function syncText(i = getSyncInfo()) {
   const t = i.lastSync ? new Date(i.lastSync).toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
-  const who = i.user ? ` (${i.user})` : '';
+  const who = i.device ? ' (zařízení připojené odkazem)' : i.user ? ` (${i.user})` : '';
   switch (i.status) {
     case 'ok': return `Data se synchronizují mezi zařízeními${who}. Naposledy ${t}.`;
     case 'pending': case 'syncing': return `Ukládám změny na server…${t ? ` Naposledy ${t}.` : ''}`;
     case 'offline': return `Jste offline. Změny se uloží v zařízení a odešlou se po připojení.${t ? ` Naposledy synchronizováno ${t}.` : ''}`;
-    case 'login': return 'Přihlášení vypršelo. Změny se ukládají v zařízení, na server se odešlou po přihlášení.';
+    case 'login': return i.device
+      ? 'Odkaz pro toto zařízení už neplatí. Změny se ukládají jen v zařízení – vložte nový odkaz (menu ⋯).'
+      : 'Nejste přihlášení. Změny se ukládají v zařízení, na server se odešlou po přihlášení.';
     case 'error': return `Synchronizace se nepovedla: ${i.error}`;
     case 'local': return 'Synchronizace není dostupná, data jsou jen v tomto prohlížeči. Zálohu si občas exportujte.';
     default: return 'Připojuji se k serveru…';
@@ -79,7 +81,9 @@ function renderSyncStatus(i) {
   if (!show) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('div'); b.id = 'sync-banner'; b.className = 'sync-banner'; document.body.appendChild(b); }
   b.innerHTML = i.status === 'login'
-    ? `<span>Přihlášení vypršelo, změny se neukládají na server.</span><button data-a="syncLogin">Přihlásit</button>`
+    ? (i.device
+      ? `<span>Odkaz pro toto zařízení už neplatí.</span><button data-a="deviceConnect">Vložit nový</button>`
+      : `<span>Nejste přihlášení, změny se neukládají na server.</span><button data-a="syncLogin">Přihlásit</button>`)
     : `<span>${esc(syncText(i))}</span><button data-a="syncNow">Zkusit znovu</button>`;
 }
 function commit(fn, { rerender = true } = {}) {
@@ -538,6 +542,50 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+// ---------- Tajný odkaz pro další zařízení (bez přihlášení) ----------
+// Odkaz nese servisní token Cloudflare Access: #/pripojit/<Client ID>/<Client Secret>.
+// Je za # – neposílá se na server ani do logů.
+const deviceLinkUrl = (id, secret) => `${location.origin}${location.pathname}#/pripojit/${encodeURIComponent(id)}/${encodeURIComponent(secret)}`;
+function parseDeviceLink(text) {
+  const m = String(text || '').trim().match(/#\/pripojit\/([^/\s]+)\/([^/\s]+)/);
+  return m ? { id: decodeURIComponent(m[1]), secret: decodeURIComponent(m[2]) } : null;
+}
+async function connectDevice(k) {
+  await setDeviceKey(k);
+  const st = getSyncInfo().status;
+  toast(st === 'ok' || st === 'pending' ? 'Zařízení připojeno, data se synchronizují' : 'Odkaz uložen, ale server ho nepřijal – zkontrolujte ho.');
+  render();
+}
+// Odkaz otevřený v prohlížeči: uložit klíč a hned ho odstranit z adresy
+function handleConnectRoute() {
+  const k = parseDeviceLink(location.hash);
+  if (!k) return false;
+  history.replaceState(null, '', `${location.pathname}#/plan`);
+  connectDevice(k);
+  return true;
+}
+function openDeviceLinkSheet() {
+  openOverlay(() => {
+    const o = overlays[overlays.length - 1];
+    if (o && o.link) return `<h2>Odkaz pro další zařízení</h2>
+      <p class="lead">Pošlete ho jen tomu, kdo má mít přístup. Kdo odkaz zná, vidí a mění data, dokud servisní token v Cloudflare nesmažete.</p>
+      <div class="note amber" style="word-break:break-all">${esc(o.link)}</div>
+      <button class="btn btn-primary btn-block" data-a="deviceLinkShare">Poslat odkaz</button>
+      <button class="btn btn-ghost btn-block" data-a="deviceLinkCopy">Kopírovat</button>`;
+    return `<h2>Odkaz pro další zařízení</h2>
+      <p class="lead">V Cloudflare Zero Trust → Access → Service credentials vytvořte servisní token a sem vložte jeho údaje. Postup je v README.</p>
+      <div class="field"><label class="field-label" for="dl-id">Client ID</label><input id="dl-id" class="input" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="field"><label class="field-label" for="dl-secret">Client Secret</label><input id="dl-secret" class="input" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <button class="btn btn-primary btn-block" data-a="deviceLinkMake">Vytvořit odkaz</button>`;
+  });
+}
+function openDeviceConnectSheet() {
+  openOverlay(() => `<h2>Připojit toto zařízení</h2>
+    <p class="lead">Vložte odkaz, který jste dostali. Zařízení si ho zapamatuje a nebude se muset přihlašovat.</p>
+    <div class="field"><textarea id="dc-link" class="input" rows="3" placeholder="https://…#/pripojit/…" autocapitalize="off" spellcheck="false"></textarea></div>
+    <button class="btn btn-primary btn-block" data-a="deviceConnectSave">Připojit</button>`);
+}
+
 // Nastavení
 function openSettings() {
   openOverlay(() => `
@@ -548,6 +596,10 @@ function openSettings() {
       <button data-a="addAllToList">Přidat vše na nákupní seznam</button>
       <button data-a="archiveWeek">Uzavřít aktuální týden ručně</button>
       <button data-a="syncNow">Synchronizovat teď</button>
+      <button data-a="deviceLink">Odkaz pro další zařízení (bez přihlášení)</button>
+      ${getSyncInfo().device
+        ? '<button data-a="deviceDisconnect">Odpojit toto zařízení</button>'
+        : '<button data-a="deviceConnect">Připojit toto zařízení odkazem</button>'}
       <button data-a="exportData">Exportovat data (záloha JSON)</button>
       <button data-a="importData">Importovat data ze zálohy</button>
       <button class="danger" data-a="wipeData">Smazat všechna data</button>
@@ -1151,7 +1203,34 @@ const A = {
   },
   importData: () => { closeAllOverlays(); $('#import-file').click(); },
   syncNow: async () => { await syncNow(); const i = getSyncInfo(); toast(i.status === 'ok' ? 'Synchronizováno' : syncText()); },
-  syncLogin: () => location.reload(),
+  // přihlášení přes Cloudflare Access (chrání jen /api) – po přihlášení se vrátí do aplikace
+  syncLogin: () => { location.href = './api/login'; },
+  deviceLink: () => { closeAllOverlays(); openDeviceLinkSheet(); },
+  deviceLinkMake: () => {
+    const id = $('#dl-id').value.trim(), secret = $('#dl-secret').value.trim();
+    if (!id || !secret) { toast('Vyplňte Client ID i Client Secret.'); return; }
+    const o = topOverlay(); o.link = deviceLinkUrl(id, secret); rerenderTop();
+  },
+  deviceLinkShare: async () => {
+    const link = topOverlay().link;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Jídelníček', text: 'Odkaz do rodinného Jídelníčku (otevři v Safari a přidej na plochu)', url: link });
+      else { await navigator.clipboard.writeText(link); toast('Odkaz zkopírován'); }
+    } catch { /* zrušeno */ }
+  },
+  deviceLinkCopy: async () => { try { await navigator.clipboard.writeText(topOverlay().link); toast('Odkaz zkopírován'); } catch { toast('Kopírování se nepovedlo – označte odkaz ručně.'); } },
+  deviceConnect: () => { closeAllOverlays(); openDeviceConnectSheet(); },
+  deviceConnectSave: async () => {
+    const k = parseDeviceLink($('#dc-link').value);
+    if (!k) { toast('To nevypadá jako odkaz pro zařízení.'); return; }
+    closeOverlay();
+    await connectDevice(k);
+  },
+  deviceDisconnect: async () => {
+    closeAllOverlays();
+    const ok = await confirmDialog({ title: 'Odpojit toto zařízení?', text: 'Zařízení přestane synchronizovat data. Data v něm zůstanou. Znovu připojit jde odkazem.', ok: 'Odpojit', danger: true });
+    if (ok) { await setDeviceKey(null); toast('Zařízení odpojeno'); }
+  },
   openProposals: () => openProposals(),
   acceptProposal: el => {
     const r = commit(s => P.acceptProposal(s, el.dataset.id));
@@ -1403,6 +1482,7 @@ document.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('hashchange', () => {
+  if (handleConnectRoute()) return;
   closeAllOverlays();
   const r = route();
   if (r.name !== 'dish') { ui.draft = null; ui.draftFor = null; ui.slotReturn = null; }
@@ -1457,6 +1537,9 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- Start ----------
 (async function init() {
+  // otevřený tajný odkaz pro zařízení: klíč uložit dřív, než se poprvé synchronizuje
+  const linkKey = parseDeviceLink(location.hash);
+  if (linkKey) { history.replaceState(null, '', `${location.pathname}#/plan`); await setDeviceKey(linkKey); }
   state = D.migrateState((await loadState()) || D.emptyState());
   const weeksChanged = D.ensureWeeks(state);
   D.currentList(state);
@@ -1464,7 +1547,13 @@ document.addEventListener('visibilitychange', () => {
   requestPersistence();
   render();
   scrollToToday();
-  initSync({ getState: () => state, setState: replaceState, onStatus: renderSyncStatus }).then(() => { if (weeksChanged) markDirty(); });
+  initSync({ getState: () => state, setState: replaceState, onStatus: renderSyncStatus }).then(() => {
+    if (weeksChanged) markDirty();
+    if (linkKey) {
+      const st = getSyncInfo().status;
+      toast(st === 'ok' || st === 'pending' ? 'Zařízení připojeno, data se synchronizují' : 'Odkaz uložen, ale server ho nepřijal – zkontrolujte ho.');
+    }
+  });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline režim nedostupný */ });
   }

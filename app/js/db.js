@@ -51,6 +51,9 @@ export const saveState = state => saveKey(KEY, state);
 // Stav synchronizace: {rev, base (poslední stav ze serveru), dirty, replace, lastSync, user}
 export const loadSyncMeta = () => loadKey('sync');
 export const saveSyncMeta = meta => saveKey('sync', meta);
+// Klíč zařízení z tajného odkazu (servisní token Cloudflare Access): {id, secret} nebo null
+export const loadDeviceKey = () => loadKey('device');
+export const saveDeviceKey = key => saveKey('device', key);
 
 export async function requestPersistence() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch { /* nic */ }

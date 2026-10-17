@@ -2,7 +2,7 @@
 // Server drží celý stav s číslem verze (rev). Zápis projde, jen když klient zná aktuální rev;
 // jinak server vrátí 409 s aktuálním stavem a klient ho sloučí (merge.js) a zkusí to znovu.
 // Data se dál ukládají i lokálně, takže aplikace funguje offline.
-import { loadSyncMeta, saveSyncMeta } from './db.js';
+import { loadSyncMeta, saveSyncMeta, loadDeviceKey, saveDeviceKey } from './db.js';
 import { mergeStates, hasContent } from './merge.js';
 
 const API = './api/state';
@@ -11,6 +11,7 @@ const POLL_MS = 30000;
 
 let meta = { rev: 0, base: null, dirty: false, replace: false, lastSync: null, user: null };
 let hooks = null; // {getState, setState, onStatus}
+let device = null; // klíč zařízení z tajného odkazu – místo přihlášení posílá servisní token Access
 let status = 'starting'; // starting | ok | pending | syncing | offline | login | local | error
 let errorMsg = '';
 let seq = 0;          // počítadlo lokálních změn
@@ -20,12 +21,23 @@ let pushTimer = null;
 
 const clone = o => JSON.parse(JSON.stringify(o));
 function setStatus(s, msg = '') { status = s; errorMsg = msg; hooks?.onStatus?.(getSyncInfo()); }
-export const getSyncInfo = () => ({ status, error: errorMsg, lastSync: meta.lastSync, user: meta.user, dirty: meta.dirty });
+export const getSyncInfo = () => ({ status, error: errorMsg, lastSync: meta.lastSync, user: meta.user, dirty: meta.dirty, device: !!device });
+
+// Připojení zařízení tajným odkazem (null = odpojit)
+export async function setDeviceKey(key) {
+  device = key && key.id && key.secret ? { id: key.id, secret: key.secret } : null;
+  await saveDeviceKey(device);
+  if (status === 'login' || status === 'error') setStatus('starting');
+  return syncNow();
+}
 
 async function api(method, body) {
   const res = await fetch(API, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : {},
+    headers: {
+      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...(device ? { 'CF-Access-Client-Id': device.id, 'CF-Access-Client-Secret': device.secret } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
     cache: 'no-store',
@@ -139,6 +151,7 @@ export function markReplace() {
 
 export async function initSync(h) {
   hooks = h;
+  device = (await loadDeviceKey()) || null;
   const saved = await loadSyncMeta();
   if (saved) meta = { ...meta, ...saved };
   else meta.dirty = hasContent(h.getState()); // existující data z doby před synchronizací

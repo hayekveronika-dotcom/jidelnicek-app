@@ -31,7 +31,7 @@ Zadání: `docs/zadani.md`, návrhy obrazovek: `docs/screens/` (10 obrazovek, mo
   - entry: `{type:'dish', refId}` | `{type:'frozen', refId, count}` | `{type:'ingredient', refId, qty, unit}`
   - Po–Pá: snídaně, svačina, večeře; So–Ne navíc oběd. Slot může mít víc položek.
 - `lists[]` nákupní seznamy {status current|archive, items[{key "ingId|unit", origin plan|manual, state todo|bought|removed, contrib{planId:{qty,missing,dishes}}, carried, adjust (ruční rozdíl množství proti jídelníčku, `setItemQty`), missingSet}], planSigs, coverage, markedDone}
-- `migrateState()` převádí starší data (schema 1: 1 entry na slot).
+- `migrateState()` převádí starší data (schema 1: 1 entry na slot) a kategorie: „Ovoce a zelenina“ → Ovoce/Zelenina (seznam ovoce `FRUITS`, vždy), jednorázové přesuny do Sýry/Uzeniny/… pod příznakem `meta.categoryMoves202610`. Pořadí `CATEGORIES` = řazení nákupního seznamu.
 
 ### Klíčová pravidla (viz `domain.js`)
 

@@ -16,8 +16,9 @@ export const DAY_NAMES = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek
 
 export const UNITS = ['g', 'kg', 'ml', 'l', 'ks', 'lžíce', 'lžička', 'hrnek', 'balení', 'plátek', 'stroužek', 'špetka'];
 export const FROZEN_UNITS = ['ks', 'porce', 'sáček'];
+// Pořadí = řazení nákupního seznamu
 export const CATEGORIES = [
-  'Ovoce a zelenina', 'Pečivo', 'Mléčné výrobky a vejce', 'Maso a ryby',
+  'Ovoce', 'Zelenina', 'Pečivo', 'Mléčné výrobky a vejce', 'Sýry', 'Uzeniny', 'Maso a ryby',
   'Trvanlivé', 'Koření a dochucovadla', 'Mražené', 'Nápoje', 'Ostatní',
 ];
 
@@ -310,6 +311,36 @@ const planIsEmpty = p => allEntries(p).length === 0;
 // Slot obsahuje pole pokrmů: p.slots[key] = [{ type: 'dish'|'frozen', refId }, ...]
 export const slotItems = (p, key) => (p.slots[key] || []);
 export const allEntries = p => Object.values(p.slots).flat();
+// Kategorie surovin: dřívější „Ovoce a zelenina“ se rozdělila na Ovoce / Zelenina (10/2026).
+const OLD_FRUIT_VEG = 'Ovoce a zelenina';
+const FRUITS = new Set(['avokado', 'banan', 'citron', 'limetka', 'hroznove vino', 'hruska', 'jablko', 'pomeranc', 'mandarinka', 'grep',
+  'kiwi', 'jahody', 'boruvky', 'maliny', 'ostruziny', 'mango', 'ananas', 'broskev', 'nektarinka', 'merunka', 'svestka', 'svestky',
+  'tresne', 'visne', 'meloun', 'granatove jablko', 'datle', 'fiky']);
+const splitFruitVeg = name => (FRUITS.has(normalize(name)) ? 'Ovoce' : 'Zelenina');
+// Jednorázové přesuny při zavedení nových kategorií (jen pokud je surovina pořád v původní kategorii)
+const CATEGORY_MOVES_2026_10 = [
+  ['chedarr', 'Mléčné výrobky a vejce', 'Sýry'], ['parmazan', 'Mléčné výrobky a vejce', 'Sýry'], ['pecorino', 'Mléčné výrobky a vejce', 'Sýry'],
+  ['cerstvy syr', 'Ostatní', 'Sýry'], ['sunka', 'Ostatní', 'Uzeniny'],
+  ['baby spenat', 'Ostatní', 'Zelenina'], ['salotka', 'Ostatní', 'Zelenina'],
+  ['mleko', 'Ostatní', 'Mléčné výrobky a vejce'], ['vejce', 'Ostatní', 'Mléčné výrobky a vejce'],
+];
+function migrateCategories(state) {
+  for (const i of state.ingredients) if (i.category === OLD_FRUIT_VEG) i.category = splitFruitVeg(i.name);
+  for (const p of state.proposals || []) {
+    const d = p.data || {};
+    if (d.category === OLD_FRUIT_VEG) d.category = splitFruitVeg(d.name);
+    for (const it of d.items || []) if (it.newIngredient?.category === OLD_FRUIT_VEG) it.newIngredient.category = splitFruitVeg(it.name);
+  }
+  state.meta = state.meta || {};
+  if (!state.meta.categoryMoves202610) {
+    for (const [norm, from, to] of CATEGORY_MOVES_2026_10) {
+      const ing = state.ingredients.find(i => i.norm === norm && i.category === from);
+      if (ing) ing.category = to;
+    }
+    state.meta.categoryMoves202610 = true;
+  }
+}
+
 // Převod starších dat (1 pokrm na slot) na pole
 export function migrateState(state) {
   for (const p of state.plans) {
@@ -319,6 +350,7 @@ export function migrateState(state) {
     }
   }
   state.proposals = state.proposals || [];
+  migrateCategories(state);
   state.schema = 2;
   return state;
 }

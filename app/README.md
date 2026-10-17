@@ -109,7 +109,7 @@ Po úpravě souborů zvyšte `VERSION` v `sw.js`, aby se telefonům načetla nov
    - Pro jídelníček, který na seznamu ještě nebyl, je místo „Všechno mám“ volba *Přidat do současného seznamu*.
 2. **Odškrtnutá položka** zůstává na seznamu, i když se pokrm z jídelníčku odebere.
 3. **Archivace týdne** probíhá automaticky v pondělí (při otevření aplikace). V menu `⋯` je navíc *Uzavřít aktuální týden ručně*. Prázdné týdny se nearchivují.
-4. **Více pokrmů na slot** (např. svačina: rohlík s avokádem, mrkev, perník, para ořechy). Ve výběru se klepnutím pokrm přidá, dalším klepnutím odebere, sheet zůstává otevřený do „Hotovo“. U jednotlivého pokrmu ve dni jde *Nahradit* / *Odebrat*.
+4. **Více pokrmů na slot** (např. svačina: rohlík s avokádem, mrkev, perník, para ořechy). Ve výběru se klepnutím pokrm přidá, dalším klepnutím odebere, sheet zůstává otevřený do „Hotovo“. U jednotlivého pokrmu ve dni jde *Nahradit* / *Odebrat*. Další pokrm do už vyplněného jídla se přidá klepnutím na pokrm → *Přidat další do tohoto jídla*.
 5. **Zbytky:** stejný pokrm ve 2 slotech se počítá dvakrát.
 6. **Volitelné údaje pokrmu:** čas přípravy, porce, Thermomix, omezení, postup/odkaz. Jsou ve sbalené sekci „Další údaje“. Fotka zatím není.
 7. **Převody jednotek nejsou.** Množství v receptu, u samostatné suroviny ve dni i u ruční položky nákupu je vždy v jednotce suroviny (jednotka se nedá vybrat, mění se jen u suroviny ve *Správě surovin*). Starší recepty s jinou jednotkou jsou označené „k opravě jednotek“ (filtr *K opravě* v Knihovně). Dokud se neopraví, jsou na nákupním seznamu jako samostatný řádek.

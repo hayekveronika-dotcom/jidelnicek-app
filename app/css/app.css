@@ -88,19 +88,11 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 .section-title:first-child { margin-top: 0; }
 
 /* Slots */
-.slot { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 11px 14px; margin-bottom: 9px; min-height: 64px; }
-.slot .lbl { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
-.slot .name { font-size: 17px; font-weight: 550; margin-top: 2px; }
-.slot.empty { border: 1.5px dashed #9fcfb0; background: transparent; }
-.slot.empty .name { color: var(--green); font-weight: 600; }
-.slot .name.deleted { text-decoration: line-through; color: var(--muted); }
 .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 7px; margin-top: 6px; }
 .badge.frozen { background: var(--blue-soft); color: var(--blue); }
 .badge.deleted { background: var(--red-soft); color: var(--red); }
 .badge.warn { background: var(--amber-soft); color: var(--amber); margin: 0 0 10px; }
 .badge.green { background: var(--green-soft); color: var(--green); }
-.day-title { font-weight: 650; color: var(--muted); font-size: 15px; margin: 18px 2px 9px; }
-.day-title.today { color: var(--green); }
 
 /* Info boxes */
 .note { border-radius: 12px; padding: 11px 14px; font-size: 14px; margin-bottom: 14px; line-height: 1.4; }
@@ -195,16 +187,9 @@ nav.tabs a.on { color: var(--green); font-weight: 700; }
 .dup-box .row2 { display: flex; gap: 8px; flex-wrap: wrap; }
 .dup-box .row2 .btn { flex: 1; min-height: 40px; font-size: 15px; background: #fff; }
 .menu-link { color: var(--green); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 4px; }
-.readonly .slot { cursor: default; }
 .kv { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
 
 /* Slot s více pokrmy */
-.slot.multi { display: block; padding: 11px 14px 6px; }
-.slot-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 7px 0; border-top: 1px solid #f0f0ec; }
-.slot-item:first-of-type { border-top: 0; padding-top: 2px; }
-.slot-item .name { font-size: 17px; font-weight: 550; }
-.slot-item .badge { margin-top: 4px; }
-.slot-add { display: block; width: 100%; text-align: left; color: var(--green); font-weight: 600; font-size: 14.5px; padding: 8px 0 6px; border-top: 1px dashed #cfe5d7; }
 .row.picked { border-color: #9fcfb0; background: var(--green-soft); }
 .chosen { background: var(--green-soft); color: var(--green-dark); border-radius: 10px; padding: 9px 12px; font-size: 14px; margin-bottom: 12px; line-height: 1.4; }
 .pick-done { position: sticky; bottom: calc(-20px - var(--safe-b)); background: #fff; padding: 10px 0 4px; margin-top: 6px; }
@@ -258,3 +243,41 @@ nav.tabs a.on { color: var(--green); font-weight: 700; }
 .picker.searching .pick-lead, .picker.searching #pick-chosen, .picker.searching .pick-new-top { display: none; }
 .picker.searching h2 { font-size: 18px; margin-bottom: 10px; }
 #pick-list .pick-new { margin-top: 10px; }
+
+/* Jídelníček – karta dne (podle návrhu 01) */
+.day-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); margin: 14px 0; overflow: hidden; }
+.day-head { display: flex; align-items: baseline; gap: 8px; background: var(--green-soft); padding: 12px 16px; border-bottom: 1px solid #d6eadc; }
+.day-head b { color: var(--green-dark); font-size: 18px; font-weight: 750; }
+.day-head span { color: var(--green); font-size: 15px; }
+.day-badge { margin-left: auto; align-self: center; font-size: 12.5px; font-weight: 700; padding: 3px 9px; border-radius: 7px; background: #fff; color: var(--green); border: 1px solid #cfe5d7; }
+.day-badge.today { background: var(--green); color: #fff; border-color: var(--green); }
+.day-head .day-badge { color: var(--green); }
+.day-head .day-badge.today { color: #fff; }
+.meal-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 0 12px 0 16px; border-top: 1px solid #efefea; min-height: 52px; }
+.day-head + .meal-row { border-top: 0; }
+.meal-lbl { flex: none; width: 82px; padding-top: 17px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+.meal-items { flex: 1; min-width: 0; }
+.meal-add { display: block; padding: 15px 0; color: var(--green); font-weight: 600; font-size: 16px; }
+.meal-item { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 14px 0; }
+.meal-item + .meal-item { border-top: 1px solid #f3f3ef; }
+.meal-main { flex: 1; min-width: 0; }
+.meal-name { font-size: 16.5px; font-weight: 550; line-height: 1.3; }
+.meal-name.deleted { text-decoration: line-through; color: var(--muted); }
+.meal-badges .badge { margin-top: 5px; }
+.meal-item .chev { flex: none; width: 18px; height: 18px; color: #9a9a94; }
+.readonly .meal-item { padding: 12px 0; }
+
+/* Jídelníček: nadpis a přepínač Aktuální/Další zůstávají nahoře při posouvání */
+.plan-sticky { position: sticky; top: 0; z-index: 20; background: var(--bg); margin: calc(-1 * (env(safe-area-inset-top, 0px) + 18px)) -16px 0; padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 2px; }
+.plan-sticky .seg { margin-bottom: 12px; }
+.plan-sticky + * { margin-top: 4px; }
+.plan-sticky { transition: padding .15s ease; box-shadow: 0 1px 0 transparent; }
+.plan-sticky .top h1, .plan-sticky .top, .plan-sticky .seg button { transition: font-size .15s ease, margin .15s ease, padding .15s ease; }
+.plan-sticky.compact { padding-top: calc(env(safe-area-inset-top, 0px) + 6px); box-shadow: 0 1px 0 var(--line); }
+.plan-sticky.compact .top { margin: 0 0 6px; }
+.plan-sticky.compact .top h1 { font-size: 20px; }
+.plan-sticky.compact .icon-btn { width: 34px; height: 34px; }
+.plan-sticky.compact .seg { padding: 3px; margin-bottom: 8px; }
+.plan-sticky.compact .seg button { padding: 5px 6px; }
+.plan-sticky.compact .seg button small { display: inline; margin-left: 6px; }
+.plan-sticky.instant, .plan-sticky.instant * { transition: none !important; }

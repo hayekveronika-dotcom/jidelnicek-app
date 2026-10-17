@@ -238,36 +238,36 @@ function entryInfo(e) {
   if (e.type === 'dish') {
     const d = D.getDish(state, e.refId);
     name = d ? d.name : '(neznámý pokrm)';
-    if (!d || d.deleted) { deleted = true; badges += '<span class="badge deleted">Smazáno z knihovny</span>'; }
+    if (!d || d.deleted) deleted = true; // smazaný z knihovny = přeškrtnutý
   } else if (e.type === 'ingredient') {
     const ing = D.getIngredient(state, e.refId);
     name = ing ? ing.name : '(neznámá surovina)';
     if (e.qty) name += ` · ${num(e.qty)} ${e.unit || ing?.unit || ''}`;
-    badges += '<span class="badge ing">Surovina</span>';
   } else {
     const f = D.getFrozen(state, e.refId);
     name = (e.count > 1 ? `${e.count}× ` : '') + (f ? f.name : '(neznámý mražený pokrm)');
     badges += '<span class="badge frozen">Mražené</span>';
-    if (!f || f.deleted) badges += ' <span class="badge deleted">Smazáno z mrazáku</span>';
+    if (!f || f.deleted) deleted = true;
   }
   return { name, badges, deleted };
 }
+// Řádek jídla v kartě dne: popisek vlevo, pokrmy vpravo (slot může mít víc položek;
+// další se přidá přes nabídku po klepnutí na pokrm)
 function slotHtml(plan, di, meal, { readonly = false } = {}) {
   const key = D.slotKey(di, meal);
   const items = D.slotItems(plan, key);
-  const lbl = `<div class="lbl">${D.TAG_LABEL[meal]}</div>`;
+  const lbl = `<div class="meal-lbl">${D.TAG_LABEL[meal]}</div>`;
   if (!items.length) {
     if (readonly) return '';
-    return `<button class="slot empty" data-a="pickSlot" data-plan="${plan.id}" data-key="${key}"><div class="main">${lbl}<div class="name">+ Přidat pokrm</div></div></button>`;
+    return `<button class="meal-row" data-a="pickSlot" data-plan="${plan.id}" data-key="${key}">${lbl}<div class="meal-items"><span class="meal-add">+ Přidat pokrm</span></div></button>`;
   }
   const rows = items.map((e, i) => {
     const { name, badges, deleted } = entryInfo(e);
-    const inner = `<div class="main" style="flex:1;min-width:0"><div class="name ${deleted ? 'deleted' : ''}">${esc(name)}</div>${badges ? `<div>${badges}</div>` : ''}</div>`;
-    return readonly ? `<div class="slot-item">${inner}</div>`
-      : `<button class="slot-item" data-a="slotItemMenu" data-plan="${plan.id}" data-key="${key}" data-i="${i}">${inner}${I.chev}</button>`;
+    const inner = `<div class="meal-main"><div class="meal-name ${deleted ? 'deleted' : ''}">${esc(name)}</div>${badges ? `<div class="meal-badges">${badges}</div>` : ''}</div>`;
+    return readonly ? `<div class="meal-item">${inner}</div>`
+      : `<button class="meal-item" data-a="slotItemMenu" data-plan="${plan.id}" data-key="${key}" data-i="${i}">${inner}${I.chev}</button>`;
   }).join('');
-  const add = readonly ? '' : `<button class="slot-add" data-a="pickSlot" data-plan="${plan.id}" data-key="${key}">+ Přidat další</button>`;
-  return `<div class="slot multi">${lbl}${rows}${add}</div>`;
+  return `<div class="meal-row">${lbl}<div class="meal-items">${rows}</div></div>`;
 }
 function weekHtml(plan, opts = {}) {
   const today = D.iso(new Date());
@@ -276,7 +276,9 @@ function weekHtml(plan, opts = {}) {
     const date = D.addDays(plan.weekStart, di);
     const slots = D.slotsForDay(di).map(m => slotHtml(plan, di, m, opts)).join('');
     if (opts.readonly && !slots) continue;
-    html += `<div class="day-title ${date === today && !opts.readonly ? 'today' : ''}">${D.DAY_NAMES[di]} ${D.fmtDay(date)}${date === today && !opts.readonly ? ' · dnes' : ''}</div>${slots}`;
+    const isToday = date === today && !opts.readonly;
+    const badge = isToday ? '<span class="day-badge today">Dnes</span>' : di >= 5 ? '<span class="day-badge">Víkend</span>' : '';
+    html += `<section class="day-card ${isToday ? 'today' : ''}"><div class="day-head"><b>${D.DAY_NAMES[di]}</b><span>${D.fmtDay(date)}</span>${badge}</div>${slots}</section>`;
   }
   return html || '<div class="list-empty">Jídelníček je prázdný.</div>';
 }
@@ -291,6 +293,7 @@ function viewPlan() {
   else if (st === 'synced') btn = `<button class="btn btn-muted btn-block" disabled>✓ Nákupní seznam je aktuální</button>`;
   else btn = `<button class="btn btn-muted btn-block" disabled>Přidat suroviny na nákupní seznam</button>`;
   return `
+  <div class="plan-sticky ${planCompact ? 'compact' : ''}">
   <div class="top"><h1>Jídelníček</h1><div class="actions">
     <button class="icon-btn" data-a="sharePlan" aria-label="Sdílet">${I.share}</button>
     <a class="icon-btn" href="#/archive" aria-label="Archiv">${I.archive}</a>
@@ -299,6 +302,7 @@ function viewPlan() {
   <div class="seg">
     <button class="${ui.planTab === 'current' ? 'on' : ''}" data-a="planTab" data-v="current">Aktuální<small>${D.fmtWeek(cur.weekStart)}</small></button>
     <button class="${ui.planTab === 'next' ? 'on' : ''}" data-a="planTab" data-v="next">Další<small>${D.fmtWeek(next.weekStart)}</small></button>
+  </div>
   </div>
   ${proposalsBannerHtml()}
   ${btn}
@@ -347,6 +351,7 @@ function openSlotItemMenu(planId, key, i) {
     <div class="action-list">
       ${isIng ? `<button data-a="slotQty" data-plan="${planId}" data-key="${key}" data-i="${i}">Upravit množství</button>` : ''}
       ${isFrozen ? `<button data-a="frozenCount" data-plan="${planId}" data-key="${key}" data-i="${i}">Upravit počet</button>` : ''}
+      <button data-a="pickSlot" data-plan="${planId}" data-key="${key}">Přidat další do tohoto jídla</button>
       <button data-a="pickSlot" data-plan="${planId}" data-key="${key}" data-replace="${i}">Nahradit něčím jiným</button>
       ${isDish && D.getDish(state, e.refId) ? `<button data-a="openDishFromSlot" data-id="${e.refId}">Zobrazit recept</button>` : ''}
       <button class="danger" data-a="removeFromSlot" data-plan="${planId}" data-key="${key}" data-i="${i}">Odebrat ze dne${isFrozen ? ` (vrátí ${e.count || 1} do mrazáku)` : ''}</button>
@@ -1035,7 +1040,7 @@ const A = {
   dlgCancel: () => topOverlay().resolve(false),
 
   // jídelníček
-  planTab: el => { ui.planTab = el.dataset.v; render(); },
+  planTab: el => { ui.planTab = el.dataset.v; render(); if (ui.planTab === 'current') scrollToToday(); else window.scrollTo(0, 0); },
   settings: () => openSettings(),
   sharePlan: () => openShareSheet(planByTab().id),
   sharePdf: async () => {
@@ -1061,7 +1066,7 @@ const A = {
   },
   pickSlot: el => {
     const r = el.dataset.replace;
-    if (r != null) closeOverlay();
+    if (el.closest('.scrim')) closeOverlay(); // z nabídky pokrmu
     openPicker(el.dataset.plan, el.dataset.key, r != null ? +r : null);
   },
   slotItemMenu: el => openSlotItemMenu(el.dataset.plan, el.dataset.key, +el.dataset.i),
@@ -1403,7 +1408,34 @@ window.addEventListener('hashchange', () => {
   if (r.name !== 'dish') { ui.draft = null; ui.draftFor = null; ui.slotReturn = null; }
   window.scrollTo(0, 0);
   render();
+  if (r.name === 'plan') scrollToToday();
 });
+
+// Při posouvání se pevná hlavička Jídelníčku zmenší (s hysterezí, aby neposkakovala)
+let planCompact = false;
+function updatePlanHeader() {
+  const h = $('.plan-sticky');
+  if (!h) return;
+  if (!planCompact && window.scrollY > 60) planCompact = true;
+  else if (planCompact && window.scrollY < 10) planCompact = false;
+  h.classList.toggle('compact', planCompact);
+}
+window.addEventListener('scroll', updatePlanHeader, { passive: true });
+
+// Jídelníček se otevírá odscrollovaný na dnešní den (jen u aktuálního týdne)
+function scrollToToday() {
+  if (route().name !== 'plan' || ui.planTab !== 'current') return;
+  const el = $('.day-card.today');
+  if (!el) return;
+  const h = $('.plan-sticky');
+  h?.classList.add('instant'); // bez animace, ať je výška hlavičky hned konečná
+  window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - 200));
+  updatePlanHeader(); // zmenšená hlavička – teprve pak je známá její výška
+  const head = h?.offsetHeight || 0; // pevná hlavička nesmí dnešek zakrýt
+  window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - head - 4));
+  updatePlanHeader();
+  requestAnimationFrame(() => h?.classList.remove('instant'));
+}
 
 // Import
 $('#import-file').addEventListener('change', async e => {
@@ -1431,6 +1463,7 @@ document.addEventListener('visibilitychange', () => {
   saveLocal();
   requestPersistence();
   render();
+  scrollToToday();
   initSync({ getState: () => state, setState: replaceState, onStatus: renderSyncStatus }).then(() => { if (weeksChanged) markDirty(); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('./sw.js').catch(() => { /* offline režim nedostupný */ });

@@ -907,6 +907,14 @@ function groupedItemsHtml(items, opts) {
   const nameOf = it => D.getIngredient(state, it.ingredientId)?.name || '';
   return cats.map(c => `<div class="section-title">${esc(c)}</div><div class="shop-group">${groups[c].sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'cs')).map(it => shopItemHtml(it, opts)).join('')}</div>`).join('');
 }
+// Nenakoupené podle kategorií, odškrtnuté (nakoupené) dole v jedné skupině podle abecedy
+function shopListHtml(items) {
+  const todo = items.filter(i => i.state !== 'bought');
+  const bought = items.filter(i => i.state === 'bought');
+  const nameOf = it => D.getIngredient(state, it.ingredientId)?.name || '';
+  return (todo.length ? groupedItemsHtml(todo) : '<div class="list-empty" style="padding:18px 0">Vše nakoupeno ✓</div>')
+    + (bought.length ? `<div class="section-title">Nakoupeno (${bought.length})</div><div class="shop-group">${bought.sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'cs')).map(it => shopItemHtml(it)).join('')}</div>` : '');
+}
 function viewShop() {
   const list = D.currentList(state);
   const active = list.items.filter(i => i.state !== 'removed');
@@ -917,7 +925,7 @@ function viewShop() {
     <a class="icon-btn" href="#/archive" data-a="archiveLists" aria-label="Archiv">${I.archive}</a>
     <button class="btn btn-outline" data-a="shopAdd">+ Surovina</button></div></div>
   <div class="shop-meta">Aktuální seznam · založen ${fmtDate(list.createdAt)}${done ? ' · <span class="badge green" style="margin:0">nakoupeno</span>' : ''}</div>
-  ${active.length ? groupedItemsHtml(active) : '<div class="list-empty">Seznam je prázdný.<br>Přidejte suroviny z jídelníčku nebo ručně.</div>'}
+  ${active.length ? shopListHtml(active) : '<div class="list-empty">Seznam je prázdný.<br>Přidejte suroviny z jídelníčku nebo ručně.</div>'}
   ${removed.length ? `<div class="removed-bar"><span>${plural(removed.length, 'vyřazená položka', 'vyřazené položky', 'vyřazených položek')} (mám doma)</span><button class="link" data-a="toggleRemoved">${ui.showRemoved ? 'Skrýt' : 'Zobrazit'}</button></div>` : ''}
   ${ui.showRemoved && removed.length ? `<div class="shop-group" style="margin-top:8px">${removed.map(it => {
     const ing = D.getIngredient(state, it.ingredientId); const q = D.itemQty(it);

@@ -129,7 +129,7 @@ Po úpravě souborů zvyšte `VERSION` v `sw.js`, aby se telefonům načetla nov
 5. **Zbytky:** stejný pokrm ve 2 slotech se počítá dvakrát.
 6. **Volitelné údaje pokrmu:** čas přípravy, porce, Thermomix, omezení, postup/odkaz. Jsou ve sbalené sekci „Další údaje“. Fotka zatím není.
 7. **Převody jednotek nejsou.** Množství v receptu, u samostatné suroviny ve dni i u ruční položky nákupu je vždy v jednotce suroviny (jednotka se nedá vybrat, mění se jen u suroviny ve *Správě surovin*). Starší recepty s jinou jednotkou jsou označené „k opravě jednotek“ (filtr *K opravě* v Knihovně). Dokud se neopraví, jsou na nákupním seznamu jako samostatný řádek.
-8. **Řazení nákupu** podle kategorie suroviny.
+8. **Řazení nákupu** podle kategorie suroviny. Odškrtnuté (nakoupené) položky jsou dole v jedné skupině *Nakoupeno*, podle abecedy.
 9. **Mražený pokrm** není propojený s knihovnou. Při 0 ks je ve výběru zašedlý a nejde přiřadit. Po výběru se otevře okno s počtem (např. 2× perník = −2 ks z mrazáku); počet jde později změnit klepnutím na položku ve dni, rozdíl se odečte nebo vrátí do mrazáku.
 10. **Filtr ve výběru pokrmu** jde zrušit (✕) a zase vrátit.
 
